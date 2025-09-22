@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portfolio Market Risk - FinSight</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Plotly.js -->
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <link rel="stylesheet" href="../static/css/portfolio-risk.css">
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="navbar navbar-expand-lg navbar-light fixed-top">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <i class="fas fa-chart-line me-2"></i>
+      <span class="brand-text">FinSight</span>
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a class="nav-link" href="/">Home</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link active" href="portfolio-risk.html">Portfolio Risk</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="/credit-risk.html">Credit Risk</a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main class="main-content">
+  <div class="container-fluid">
+    
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="row align-items-center">
+        <div class="col-lg-8">
+          <h1 class="page-title">
+            <i class="fas fa-chart-pie me-3"></i>
+            📊 Portfolio Market Risk
+          </h1>
+          <p class="page-subtitle">Analyze your stock portfolio's market risk with advanced VaR calculations and forecasting</p>
+        </div>
+        <div class="col-lg-4 text-lg-end">
+          <div class="last-updated">
+            <i class="fas fa-clock me-2"></i>
+            Last updated: <span id="lastUpdated">--</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input Form Section -->
+    <section class="input-section">
+      <div class="row">
+        <div class="col-lg-8 mx-auto">
+          <div class="input-card">
+            <div class="card-header">
+              <h3><i class="fas fa-cog me-2"></i>Portfolio Configuration</h3>
+              <p>Enter your stock portfolio details to analyze market risk</p>
+            </div>
+            <div class="card-body">
+              <form id="portfolioForm">
+                <div class="row g-4">
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="stockSymbols" class="form-label">
+                        <i class="fas fa-tags me-2"></i>Stock Symbols
+                      </label>
+                      <input type="text" class="form-control" id="stockSymbols" 
+                             placeholder="e.g., AAPL, MSFT, GOOGL, TSLA">
+                      <div class="form-text">Enter stock symbols separated by commas</div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="quantities" class="form-label">
+                        <i class="fas fa-layer-group me-2"></i>Quantities
+                      </label>
+                      <input type="text" class="form-control" id="quantities" 
+                             placeholder="e.g., 100, 50, 25, 75">
+                      <div class="form-text">Enter quantities in same order as symbols</div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="confidenceLevel" class="form-label">
+                        <i class="fas fa-shield-alt me-2"></i>Confidence Level for VaR
+                      </label>
+                      <select class="form-select" id="confidenceLevel">
+                        <option value="90">90% Confidence Level</option>
+                        <option value="95">95% Confidence Level</option>
+                        <option value="99" selected>99% Confidence Level</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label for="timeHorizon" class="form-label">
+                        <i class="fas fa-calendar-alt me-2"></i>Time Horizon
+                      </label>
+                      <select class="form-select" id="timeHorizon">
+                        <option value="1" selected>1 Day</option>
+                        <option value="5">5 Days</option>
+                        <option value="10">10 Days</option>
+                        <option value="30">30 Days</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="fas fa-calculator me-2"></i>
+                    Analyze Portfolio Risk
+                  </button>
+                  <button type="button" class="btn btn-outline-secondary btn-lg" id="clearForm">
+                    <i class="fas fa-eraser me-2"></i>
+                    Clear Form
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results Section -->
+    <section class="results-section" id="resultsSection" style="display: none;">
+      
+      <!-- Risk Metrics Cards -->
+      <div class="row mb-5">
+        <div class="col-12">
+          <h2 class="section-title">
+            <i class="fas fa-chart-bar me-2"></i>Risk Metrics
+          </h2>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-4">
+          <div class="metric-card var-card">
+            <div class="metric-icon">
+              <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div class="metric-content">
+              <div class="metric-label">Value at Risk (VaR)</div>
+              <div class="metric-value" id="varValue">$0</div>
+              <div class="metric-detail" id="varDetail">99% Confidence</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-4">
+          <div class="metric-card cvar-card">
+            <div class="metric-icon">
+              <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="metric-content">
+              <div class="metric-label">Conditional VaR (CVaR)</div>
+              <div class="metric-value" id="cvarValue">$0</div>
+              <div class="metric-detail">Expected Shortfall</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-4">
+          <div class="metric-card volatility-card">
+            <div class="metric-icon">
+              <i class="fas fa-wave-square"></i>
+            </div>
+            <div class="metric-content">
+              <div class="metric-label">Portfolio Volatility</div>
+              <div class="metric-value" id="volatilityValue">0%</div>
+              <div class="metric-detail">Annualized</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-4">
+          <div class="metric-card portfolio-value-card">
+            <div class="metric-icon">
+              <i class="fas fa-dollar-sign"></i>
+            </div>
+            <div class="metric-content">
+              <div class="metric-label">Total Portfolio Value</div>
+              <div class="metric-value" id="portfolioValue">$0</div>
+              <div class="metric-detail">Current Market Value</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Portfolio Table -->
+      <div class="row mb-5">
+        <div class="col-12">
+          <h2 class="section-title">
+            <i class="fas fa-table me-2"></i>Portfolio Holdings
+          </h2>
+          <div class="table-card">
+            <div class="table-responsive">
+              <table class="table table-hover" id="portfolioTable">
+                <thead>
+                  <tr>
+                    <th><i class="fas fa-tag me-2"></i>Stock</th>
+                    <th><i class="fas fa-layer-group me-2"></i>Quantity</th>
+                    <th><i class="fas fa-dollar-sign me-2"></i>Current Price</th>
+                    <th><i class="fas fa-chart-pie me-2"></i>Weight</th>
+                    <th><i class="fas fa-calculator me-2"></i>Value</th>
+                    <th><i class="fas fa-percentage me-2"></i>Daily Return</th>
+                  </tr>
+                </thead>
+                <tbody id="portfolioTableBody">
+                  <!-- Dynamic content will be inserted here -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Section -->
+      <div class="row mb-5">
+        <div class="col-lg-8">
+          <h2 class="section-title">
+            <i class="fas fa-chart-line me-2"></i>Historical Price Trends
+          </h2>
+          <div class="chart-card">
+            <canvas id="priceChart"></canvas>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <h2 class="section-title">
+            <i class="fas fa-chart-pie me-2"></i>Portfolio Allocation
+          </h2>
+          <div class="chart-card">
+            <canvas id="allocationChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Forecast Section -->
+      <div class="row">
+        <div class="col-12">
+          <h2 class="section-title">
+            <i class="fas fa-crystal-ball me-2"></i>📈 7-Day Stock Price Forecast
+          </h2>
+          <div class="forecast-card">
+            <div class="forecast-header">
+              <div class="forecast-controls">
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="checkbox" id="showHistorical" checked>
+                  <label class="form-check-label" for="showHistorical">
+                    Show Historical Data
+                  </label>
+                </div>
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="checkbox" id="showForecast" checked>
+                  <label class="form-check-label" for="showForecast">
+                    Show Forecast
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div class="forecast-content">
+              <div id="forecastChart"></div>
+            </div>
+            <div class="forecast-legend">
+              <div class="legend-item">
+                <div class="legend-color historical"></div>
+                <span>Historical Prices</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color forecast"></div>
+                <span>7-Day Forecast</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+</main>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-content">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="loading-text">Analyzing portfolio risk...</p>
+  </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Custom JavaScript -->
+<script src="../static/js/portfolio-risk.js"></script>
+
+</body>
+</html>
