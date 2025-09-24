@@ -7,4 +7,6 @@ python-dotenv
 tensorflow
 scikit-learn
 joblib
+gunicorn
+scikit-learn==1.6.1
 
