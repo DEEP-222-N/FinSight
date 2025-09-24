@@ -134,13 +134,11 @@ function assessCreditRisk(income, loanAmount, creditScore, employment, term) {
 function calculateRiskMetrics(income, loanAmount, creditScore, employment, term) {
   // Calculate monthly income
   const monthlyIncome = income / 12;
-  
+
   // Estimate monthly debt payments (including the new loan)
-  // For existing debts, we'll use a simple estimation based on credit score
-  // In a real application, this would come from credit report data
   let existingMonthlyDebt = 0;
   if (creditScore < 600) {
-    existingMonthlyDebt = monthlyIncome * 0.35; // Higher debt for lower credit scores
+    existingMonthlyDebt = monthlyIncome * 0.35;
   } else if (creditScore < 700) {
     existingMonthlyDebt = monthlyIncome * 0.25;
   } else if (creditScore < 800) {
@@ -148,63 +146,66 @@ function calculateRiskMetrics(income, loanAmount, creditScore, employment, term)
   } else {
     existingMonthlyDebt = monthlyIncome * 0.10;
   }
-  
-  // Calculate monthly payment for the requested loan
-  const monthlyRate = 0.05 / 12; // Assuming 5% annual interest rate
+
+  // Monthly payment for requested loan
+  const monthlyRate = 0.05 / 12; // 5% annual interest
   const numPayments = term;
   let monthlyLoanPayment = 0;
   if (monthlyRate > 0) {
-    monthlyLoanPayment = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / 
-                        (Math.pow(1 + monthlyRate, numPayments) - 1);
+    monthlyLoanPayment = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) /
+      (Math.pow(1 + monthlyRate, numPayments) - 1);
   } else {
-    monthlyLoanPayment = loanAmount / numPayments; // Handle 0% interest case
+    monthlyLoanPayment = loanAmount / numPayments;
   }
-  
-  // Calculate total monthly debt payments (existing + new loan)
+
+  // Total monthly debt & DTI
   const totalMonthlyDebt = existingMonthlyDebt + monthlyLoanPayment;
-  
-  // Calculate debt-to-income ratio (as a percentage)
-  const dti = (totalMonthlyDebt / monthlyIncome);
-  
-  // Calculate credit score component
+  const dti = totalMonthlyDebt / monthlyIncome;
+
+  // Components for risk score
   const creditScoreComponent = getCreditScoreComponent(creditScore);
-  
-  // Calculate income ratio component
   const incomeRatioComponent = getIncomeRatioComponent(dti);
-  
-  // Calculate employment component
   const employmentComponent = creditScoring.employment[employment];
-  
-  // Calculate loan term component
   const termComponent = creditScoring.loanTerm[term.toString()];
-  
-  // Calculate overall risk score (0-100, higher is better)
+
+  // Overall risk score
   const riskScore = (
     creditScoreComponent.score * creditScoreComponent.weight +
     incomeRatioComponent.score * incomeRatioComponent.weight +
     employmentComponent.score * employmentComponent.weight +
     termComponent.score * termComponent.weight
   );
-  
-  // Calculate probability of default (PD) - inverse relationship with risk score
+
+  // Probability of Default (PD)
   const pd = Math.max(0.1, (100 - riskScore) / 100 * 10); // 0.1% to 10%
-  
-  // Calculate expected loss (EL) = PD * LGD * EAD
-  const lgd = 0.4; // Loss Given Default (40%)
-  const ead = loanAmount; // Exposure at Default
+
+  // Loss Given Default (LGD) - 40% standard
+  const lgd = 0.4;
+
+  // Exposure at Default (EAD) = loan amount
+  const ead = loanAmount;
+
+  // Expected Loss (EL)
   const el = pd / 100 * lgd * ead;
-  
-  // Calculate risk-weighted assets (RWA) - simplified Basel III approach
-  const rwa = loanAmount * (1 + pd / 100 * 10); // Simplified calculation
-  
-  // Calculate interest rate based on risk
-  const baseRate = 5.0; // Base rate
-  const riskPremium = (100 - riskScore) / 10; // Risk premium
+
+  // Risk Weighted Assets (RWA) - Basel III approach
+  // Using simplified Basel formula: RWA = EAD * Risk Weight
+  // Risk Weight based on PD: for example, PD <= 1% → 20%, 1-5% → 50%, 5-10% → 100%, >10% → 150%
+  let riskWeight = 1.0; // default 100%
+  if (pd <= 1) riskWeight = 0.2;
+  else if (pd <= 5) riskWeight = 0.5;
+  else if (pd <= 10) riskWeight = 1.0;
+  else riskWeight = 1.5;
+  const rwa = ead * riskWeight;
+
+  // Interest rate based on risk
+  const baseRate = 5.0;
+  const riskPremium = (100 - riskScore) / 10;
   const interestRate = baseRate + riskPremium;
-  
-  // Calculate monthly payment (already calculated above, reusing the value)
+
+  // Monthly payment (reusing calculated value)
   const monthlyPayment = monthlyLoanPayment;
-  
+
   return {
     riskScore: riskScore,
     pd: pd,
@@ -221,6 +222,7 @@ function calculateRiskMetrics(income, loanAmount, creditScore, employment, term)
     }
   };
 }
+
 
 function getCreditScoreComponent(score) {
   const categories = creditScoring.creditScore;

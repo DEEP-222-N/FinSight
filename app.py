@@ -3,6 +3,10 @@ import requests
 import numpy as np
 import os
 import pandas as pd
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 from datetime import datetime, timedelta
 import yfinance as yf
 import tensorflow as tf
