@@ -44,14 +44,6 @@ FinSight is a comprehensive financial analysis platform that provides stock mark
 
 ## Usage
 
-1. Start the Flask development server:
-   ```bash
-   flask run
-   ```
-
-2. Open your web browser and navigate to:
-   ```
-   http://127.0.0.1:5000/
    ```
 
 3. Use the web interface to:
