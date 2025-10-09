@@ -80,7 +80,7 @@ FinSight/
 
 1. **Clone the repository**
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/DEEP-222-N/FinSight/
    cd FinSight
    ```
 
@@ -234,12 +234,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [Bootstrap](https://getbootstrap.com) for the beautiful UI components
 - [Chart.js](https://www.chartjs.org) for data visualization
 
-## 📞 Support
-
-For support and questions:
-- Create an issue in the repository
-- Contact the development team
-
----
 
 **FinSight** - Empowering financial decisions through advanced risk analysis and machine learning.
