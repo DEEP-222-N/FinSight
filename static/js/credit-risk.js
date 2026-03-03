@@ -40,7 +40,7 @@ const creditScoring = {
 };
 
 // Initialize the application
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
   initializeApp();
   setupEventListeners();
   updateLastUpdatedTime();
@@ -54,10 +54,10 @@ function initializeApp() {
 function setupEventListeners() {
   // Form submission
   document.getElementById('creditForm').addEventListener('submit', handleFormSubmit);
-  
+
   // Clear form button
   document.getElementById('clearForm').addEventListener('click', clearForm);
-  
+
   // Real-time calculation on input change
   const inputs = ['income', 'loanAmount', 'creditScore', 'employmentStatus', 'loanTerm'];
   inputs.forEach(inputId => {
@@ -73,27 +73,27 @@ function updateLastUpdatedTime() {
 
 function handleFormSubmit(e) {
   e.preventDefault();
-  
+
   const income = parseFloat(document.getElementById('income').value);
   const loanAmount = parseFloat(document.getElementById('loanAmount').value);
   const creditScore = parseInt(document.getElementById('creditScore').value);
   const employmentStatus = document.getElementById('employmentStatus').value;
   const loanTerm = document.getElementById('loanTerm').value;
-  
+
   // Validate inputs
   if (!income || !loanAmount || !creditScore) {
     alert('Please fill in all required fields.');
     return;
   }
-  
+
   if (creditScore < 300 || creditScore > 850) {
     alert('Credit score must be between 300 and 850.');
     return;
   }
-  
+
   // Show loading overlay
   showLoadingOverlay();
-  
+
   // Simulate API call delay
   setTimeout(() => {
     assessCreditRisk(income, loanAmount, creditScore, employmentStatus, loanTerm);
@@ -110,19 +110,19 @@ function assessCreditRisk(income, loanAmount, creditScore, employment, term) {
     employment: employment,
     term: parseInt(term)
   };
-  
+
   // Calculate risk metrics
   const riskMetrics = calculateRiskMetrics(income, loanAmount, creditScore, employment, term);
-  
+
   // Make loan decision
   const decision = makeLoanDecision(riskMetrics);
-  
+
   // Update UI
   updateDecisionCard(decision, riskMetrics);
   updateRiskMetrics(riskMetrics);
   createRiskScoreChart(riskMetrics);
   createDefaultTrendChart();
-  
+
   // Show and scroll to results section
   const resultsSection = document.getElementById('resultsSection');
   if (resultsSection) {
@@ -134,7 +134,7 @@ function assessCreditRisk(income, loanAmount, creditScore, employment, term) {
 function calculateRiskMetrics(income, loanAmount, creditScore, employment, term) {
   // Calculate monthly income
   const monthlyIncome = income / 12;
-  
+
   // Estimate monthly debt payments (including the new loan)
   // For existing debts, we'll use a simple estimation based on credit score
   // In a real application, this would come from credit report data
@@ -148,36 +148,36 @@ function calculateRiskMetrics(income, loanAmount, creditScore, employment, term)
   } else {
     existingMonthlyDebt = monthlyIncome * 0.10;
   }
-  
+
   // Calculate monthly payment for the requested loan
   const monthlyRate = 0.05 / 12; // Assuming 5% annual interest rate
   const numPayments = term;
   let monthlyLoanPayment = 0;
   if (monthlyRate > 0) {
-    monthlyLoanPayment = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / 
-                        (Math.pow(1 + monthlyRate, numPayments) - 1);
+    monthlyLoanPayment = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) /
+      (Math.pow(1 + monthlyRate, numPayments) - 1);
   } else {
     monthlyLoanPayment = loanAmount / numPayments; // Handle 0% interest case
   }
-  
+
   // Calculate total monthly debt payments (existing + new loan)
   const totalMonthlyDebt = existingMonthlyDebt + monthlyLoanPayment;
-  
+
   // Calculate debt-to-income ratio (as a percentage)
   const dti = (totalMonthlyDebt / monthlyIncome);
-  
+
   // Calculate credit score component
   const creditScoreComponent = getCreditScoreComponent(creditScore);
-  
+
   // Calculate income ratio component
   const incomeRatioComponent = getIncomeRatioComponent(dti);
-  
+
   // Calculate employment component
   const employmentComponent = creditScoring.employment[employment];
-  
+
   // Calculate loan term component
   const termComponent = creditScoring.loanTerm[term.toString()];
-  
+
   // Calculate overall risk score (0-100, higher is better)
   const riskScore = (
     creditScoreComponent.score * creditScoreComponent.weight +
@@ -185,29 +185,42 @@ function calculateRiskMetrics(income, loanAmount, creditScore, employment, term)
     employmentComponent.score * employmentComponent.weight +
     termComponent.score * termComponent.weight
   );
-  
-  // Calculate probability of default (PD) - inverse relationship with risk score
-  const pd = Math.max(0.1, (100 - riskScore) / 100 * 10); // 0.1% to 10%
-  
+
+  // Logistic-regression PD (output is a probability 0–1)
+  const z =
+    -3.5
+    + 0.006 * (650 - creditScore)
+    + 3.0 * dti
+    + (employment === 'unemployed' ? 1.2 : 0)
+    + (employment === 'part-time' ? 0.5 : 0);
+  const pd = 1 / (1 + Math.exp(-z)); // ranges naturally 0–1 (0–100%)
+  const pdPercent = pd * 100;         // use this for display
+
+  // Dynamic LGD based on borrower risk profile
+  let lgd = 0.4;
+  if (dti > 0.6) lgd = 0.6;
+  if (creditScore < 600) lgd = 0.7;
+
   // Calculate expected loss (EL) = PD * LGD * EAD
-  const lgd = 0.4; // Loss Given Default (40%)
   const ead = loanAmount; // Exposure at Default
-  const el = pd / 100 * lgd * ead;
-  
-  // Calculate risk-weighted assets (RWA) - simplified Basel III approach
-  const rwa = loanAmount * (1 + pd / 100 * 10); // Simplified calculation
-  
+  const el = pd * lgd * ead;
+
+  // Simplified IRB-style RWA
+  const capitalRequirement = pd * lgd * 12.5;
+  const rwa = capitalRequirement * loanAmount;
+
   // Calculate interest rate based on risk
   const baseRate = 5.0; // Base rate
   const riskPremium = (100 - riskScore) / 10; // Risk premium
   const interestRate = baseRate + riskPremium;
-  
+
   // Calculate monthly payment (already calculated above, reusing the value)
   const monthlyPayment = monthlyLoanPayment;
-  
+
   return {
     riskScore: riskScore,
-    pd: pd,
+    pd: pd,           // decimal probability 0–1
+    pdPercent: pdPercent, // display value 0–100
     el: el,
     rwa: rwa,
     dti: dti,
@@ -233,42 +246,47 @@ function getCreditScoreComponent(score) {
 }
 
 function getIncomeRatioComponent(dti) {
-  const categories = creditScoring.incomeRatio;
-  for (const [category, data] of Object.entries(categories)) {
-    if (dti <= data.min) {
-      return { ...data, category: category };
-    }
-  }
-  return { ...categories.veryPoor, category: 'veryPoor' };
+  if (dti <= 0.2) return { score: 100, weight: 0.25, category: 'excellent' };
+  if (dti <= 0.3) return { score: 80, weight: 0.25, category: 'good' };
+  if (dti <= 0.4) return { score: 60, weight: 0.25, category: 'fair' };
+  if (dti <= 0.5) return { score: 40, weight: 0.25, category: 'poor' };
+  return { score: 20, weight: 0.25, category: 'veryPoor' };
 }
 
 function makeLoanDecision(riskMetrics) {
   const { riskScore, pd, dti, components } = riskMetrics;
   const reasons = [];
-  
-  // Check credit score
-  if (components.creditScore.category === 'veryPoor' || components.creditScore.category === 'poor') {
-    reasons.push('low credit score');
+  let approved;
+
+  // Hard rejection: monthly debt exceeds monthly income
+  if (dti > 1) {
+    approved = false;
+    reasons.push('monthly debt payments exceed monthly income (DTI > 100%)');
+  } else {
+    // Check credit score
+    if (components.creditScore.category === 'veryPoor' || components.creditScore.category === 'poor') {
+      reasons.push('low credit score');
+    }
+
+    // Check debt-to-income ratio
+    if (dti > 0.4) {
+      reasons.push('high debt-to-income ratio');
+    }
+
+    // Check employment status
+    if (components.employment.score < 60) {
+      reasons.push('employment status');
+    }
+
+    // Check loan term
+    if (components.term.score < 70) {
+      reasons.push('longer loan term');
+    }
+
+    // Decision criteria: PD threshold now uses decimal (e.g. pd <= 0.15 means ≤15%)
+    approved = riskScore >= 60 && pd <= 0.15 && dti <= 0.4;
   }
-  
-  // Check debt-to-income ratio
-  if (dti > 0.4) {
-    reasons.push('high debt-to-income ratio');
-  }
-  
-  // Check employment status
-  if (components.employment.score < 60) {
-    reasons.push('employment status');
-  }
-  
-  // Check loan term
-  if (components.term.score < 70) {
-    reasons.push('longer loan term');
-  }
-  
-  // Decision criteria
-  const approved = riskScore >= 60 && pd <= 5 && dti <= 0.4;
-  
+
   // Format rejection reasons
   let reasonMessage = '';
   if (!approved) {
@@ -285,11 +303,11 @@ function makeLoanDecision(riskMetrics) {
       reasonMessage = 'due to overall risk assessment';
     }
   }
-  
+
   return {
     approved: approved,
-    reason: approved ? 
-      'Meets all credit criteria' : 
+    reason: approved ?
+      'Meets all credit criteria' :
       `Does not meet minimum credit requirements ${reasonMessage}`,
     riskLevel: riskScore >= 80 ? 'Low' : riskScore >= 60 ? 'Medium' : 'High',
     rejectionReasons: reasons
@@ -302,18 +320,18 @@ function updateDecisionCard(decision, metrics) {
   const decisionMessage = document.getElementById('decisionMessage');
   const confidenceLevel = document.getElementById('confidenceLevel');
   const decisionDetails = document.getElementById('decisionDetails');
-  
+
   if (!decisionCard || !decisionStatus || !decisionMessage || !confidenceLevel) {
     console.error('Required decision card elements not found');
     return;
   }
-  
+
   // Reset classes
   decisionCard.className = 'decision-card';
-  
+
   if (decision.approved) {
     decisionCard.classList.add('approved');
-    
+
     // More conversational approval messages based on risk level
     let approvalMessage = '';
     if (metrics.riskScore >= 80) {
@@ -323,7 +341,7 @@ function updateDecisionCard(decision, metrics) {
     } else {
       approvalMessage = 'Your loan application has a good chance of approval. ✅';
     }
-    
+
     decisionStatus.innerHTML = '<i class="fas fa-check-circle me-2"></i>High Approval Likelihood';
     decisionMessage.textContent = approvalMessage;
     confidenceLevel.textContent = `${Math.round(metrics.riskScore)}%`;
@@ -332,16 +350,16 @@ function updateDecisionCard(decision, metrics) {
     confidenceLevel.classList.add('bg-success');
   } else {
     decisionCard.classList.add('rejected');
-    
+
     // Generate specific rejection reasons
     const rejectionReasons = [];
-    
+
     // Credit score related
-    if (metrics.components.creditScore.category === 'veryPoor' || 
-        metrics.components.creditScore.category === 'poor') {
+    if (metrics.components.creditScore.category === 'veryPoor' ||
+      metrics.components.creditScore.category === 'poor') {
       rejectionReasons.push(`Your credit score (${creditData.creditScore}) is considered too low for approval. Most lenders look for scores above 650.`);
     }
-    
+
     // Debt-to-income ratio
     if (metrics.dti > 0.4) {
       const currentDTI = (metrics.dti * 100).toFixed(1);
@@ -350,19 +368,19 @@ function updateDecisionCard(decision, metrics) {
       rejectionReasons.push(`Your total debt-to-income ratio (${currentDTI}%) exceeds the recommended maximum of 40%`);
       rejectionReasons.push(`The new loan payment would be ${newLoanRatio}% of your monthly income`);
     }
-    
+
     // Employment status
     if (metrics.components.employment.score < 60) {
       rejectionReasons.push(`Your employment status (${creditData.employment}) may be affecting your application. Stable, long-term employment is preferred.`);
     }
-    
+
     // Loan term
     if (metrics.components.term.score < 70) {
       rejectionReasons.push(`The requested loan term (${creditData.term} months) may be too long for the requested amount.`);
     }
-    
+
     // Note: General advice is now handled in the rejectionHTML template
-    
+
     // Create structured HTML for rejection message
     let rejectionHTML = `
       <div class="rejection-header mb-3">
@@ -382,7 +400,7 @@ function updateDecisionCard(decision, metrics) {
         </ul>
       </div>
     `;
-    
+
     // Update the UI
     decisionStatus.innerHTML = '<i class="fas fa-times-circle me-2"></i>Approval Unlikely';
     decisionMessage.innerHTML = rejectionHTML;
@@ -391,7 +409,7 @@ function updateDecisionCard(decision, metrics) {
     confidenceLevel.classList.remove('bg-success');
     confidenceLevel.classList.add('bg-danger');
   }
-  
+
   // Update risk metrics if they exist
   updateRiskMetrics(metrics);
 }
@@ -408,7 +426,7 @@ function updateRiskMetrics(metrics) {
         if (id.includes('pd') || id.includes('dti') || id.includes('interestRate')) {
           el.textContent = `${value.toFixed(1)}%`;
         } else if (id.includes('el') || id.includes('rwa')) {
-          el.textContent = `$${value.toLocaleString(undefined, {maximumFractionDigits: 0})}`;
+          el.textContent = `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
         } else if (id.includes('monthlyPayment')) {
           el.textContent = `$${value.toFixed(2)}`;
         } else {
@@ -419,15 +437,15 @@ function updateRiskMetrics(metrics) {
       }
     }
   };
-  
+
   // Update all metrics
-  updateIfExists('pdValue', metrics.pd);
+  updateIfExists('pdValue', metrics.pdPercent);
   updateIfExists('elValue', metrics.el);
   updateIfExists('rwaValue', metrics.rwa);
   updateIfExists('dtiValue', metrics.dti * 100);
   updateIfExists('interestRateValue', metrics.interestRate);
   updateIfExists('monthlyPaymentValue', metrics.monthlyPayment);
-  
+
   // Update risk level indicator
   const riskLevelEl = document.getElementById('riskLevel');
   if (riskLevelEl) {
@@ -437,7 +455,7 @@ function updateRiskMetrics(metrics) {
 }
 
 function getRiskLevelClass(level) {
-  switch(level.toLowerCase()) {
+  switch (level.toLowerCase()) {
     case 'low': return 'bg-success';
     case 'medium': return 'bg-warning';
     case 'high': return 'bg-danger';
@@ -447,11 +465,11 @@ function getRiskLevelClass(level) {
 
 function createRiskScoreChart(metrics) {
   const ctx = document.getElementById('riskScoreChart').getContext('2d');
-  
+
   if (riskScoreChart) {
     riskScoreChart.destroy();
   }
-  
+
   const components = metrics.components;
   const labels = ['Credit Score', 'Income Ratio', 'Employment', 'Loan Term'];
   const scores = [
@@ -466,7 +484,7 @@ function createRiskScoreChart(metrics) {
     'rgba(6, 182, 212, 0.8)',
     'rgba(16, 185, 129, 0.8)'
   ];
-  
+
   riskScoreChart = new Chart(ctx, {
     type: 'doughnut',
     data: {
@@ -496,26 +514,27 @@ function createRiskScoreChart(metrics) {
 
 function createDefaultTrendChart() {
   const ctx = document.getElementById('defaultTrendChart').getContext('2d');
-  
+
   if (defaultTrendChart) {
     defaultTrendChart.destroy();
   }
-  
+
   // Generate sample trend data
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const basePd = creditData ? calculateRiskMetrics(
-    creditData.income, 
-    creditData.loanAmount, 
-    creditData.creditScore, 
-    creditData.employment, 
+  const baseMetricsForTrend = creditData ? calculateRiskMetrics(
+    creditData.income,
+    creditData.loanAmount,
+    creditData.creditScore,
+    creditData.employment,
     creditData.term
-  ).pd : 2.3;
-  
+  ) : { pdPercent: 5 };
+
+  const basePdPercent = baseMetricsForTrend.pdPercent;
   const trendData = months.map((_, index) => {
-    const variation = (Math.random() - 0.5) * 0.5; // ±0.25% variation
-    return Math.max(0.1, basePd + variation);
+    const variation = (Math.random() - 0.5) * basePdPercent * 0.2; // ±10% relative variation
+    return Math.max(0.01, basePdPercent + variation);
   });
-  
+
   defaultTrendChart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -545,9 +564,9 @@ function createDefaultTrendChart() {
       scales: {
         y: {
           beginAtZero: true,
-          max: 10,
+          max: 60,
           ticks: {
-            callback: function(value) {
+            callback: function (value) {
               return value.toFixed(1) + '%';
             }
           }
@@ -564,11 +583,11 @@ function calculateRealTimeMetrics() {
   const creditScore = parseInt(document.getElementById('creditScore').value);
   const employment = document.getElementById('employmentStatus').value;
   const term = document.getElementById('loanTerm').value;
-  
+
   if (income && loanAmount && creditScore && employment && term) {
     const metrics = calculateRiskMetrics(income, loanAmount, creditScore, employment, parseInt(term));
     const decision = makeLoanDecision(metrics);
-    
+
     // Update decision preview (if results section is visible)
     if (document.getElementById('resultsSection').style.display !== 'none') {
       updateDecisionCard(decision, metrics);
@@ -588,7 +607,7 @@ function hideLoadingOverlay() {
 function clearForm() {
   document.getElementById('creditForm').reset();
   document.getElementById('resultsSection').style.display = 'none';
-  
+
   // Clear charts
   if (riskScoreChart) {
     riskScoreChart.destroy();
@@ -602,17 +621,17 @@ function clearForm() {
     stressTestChart.destroy();
     stressTestChart = null;
   }
-  
+
   // Reset credit data
   creditData = {};
 }
 
 // Stress Test Modal Functionality
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
   // Initialize stress test chart when modal is shown
   const stressTestModal = document.getElementById('stressTestModal');
   if (stressTestModal) {
-    stressTestModal.addEventListener('shown.bs.modal', function() {
+    stressTestModal.addEventListener('shown.bs.modal', function () {
       createStressTestChart();
     });
   }
@@ -620,13 +639,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function createStressTestChart() {
   const ctx = document.getElementById('stressTestChart').getContext('2d');
-  
+
   if (stressTestChart) {
     stressTestChart.destroy();
   }
-  
+
   if (!creditData.income) return;
-  
+
   // Calculate base case metrics
   const baseMetrics = calculateRiskMetrics(
     creditData.income,
@@ -635,7 +654,7 @@ function createStressTestChart() {
     creditData.employment,
     creditData.term
   );
-  
+
   // Calculate adverse scenario metrics
   const adverseMetrics = calculateRiskMetrics(
     creditData.income * 0.8, // 20% income reduction
@@ -644,12 +663,12 @@ function createStressTestChart() {
     creditData.employment,
     creditData.term
   );
-  
+
   const scenarios = ['Base Case', 'Adverse Scenario'];
   const pdData = [baseMetrics.pd, adverseMetrics.pd];
   const elData = [baseMetrics.el, adverseMetrics.el];
   const rwaData = [baseMetrics.rwa, adverseMetrics.rwa];
-  
+
   stressTestChart = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -703,7 +722,7 @@ function createStressTestChart() {
             text: 'Probability of Default (%)'
           },
           ticks: {
-            callback: function(value) {
+            callback: function (value) {
               return value.toFixed(1) + '%';
             }
           }
@@ -720,7 +739,7 @@ function createStressTestChart() {
             drawOnChartArea: false,
           },
           ticks: {
-            callback: function(value) {
+            callback: function (value) {
               return '$' + value.toFixed(0);
             }
           }

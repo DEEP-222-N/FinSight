@@ -61,7 +61,7 @@ const symbolNameMap = {
 };
 
 // Initialize the application
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
   initializeApp();
   setupEventListeners();
   updateLastUpdatedTime();
@@ -76,10 +76,10 @@ function initializeApp() {
 function setupEventListeners() {
   // Form submission
   document.getElementById('portfolioForm').addEventListener('submit', handleFormSubmit);
-  
+
   // Clear form button
   document.getElementById('clearForm').addEventListener('click', clearForm);
-  
+
   // Forecast chart controls
   document.getElementById('showHistorical').addEventListener('change', updateForecastChart);
   document.getElementById('showForecast').addEventListener('change', updateForecastChart);
@@ -133,23 +133,23 @@ async function analyzePortfolio(symbols, quantities, confidenceLevel, timeHorizo
   // Process portfolio data
   portfolioData = [];
   let totalValue = 0;
-  
+
   // First, process the basic price data
   for (let i = 0; i < symbols.length; i++) {
     const symbol = symbols[i];
     const priceInfo = priceData[symbol];
     const quantity = quantities[i];
-    
+
     if (priceInfo && priceInfo.current) {
       const value = priceInfo.current * quantity;
       totalValue += value;
-      
-      // Calculate daily return if possible
+
+      // Compute log return (more accurate than simple return)
       let dailyReturn = 0;
-      if (priceInfo.previous_close && priceInfo.previous_close !== 0) {
-        dailyReturn = (priceInfo.current - priceInfo.previous_close) / priceInfo.previous_close;
+      if (priceInfo.previous_close && priceInfo.previous_close > 0 && priceInfo.current > 0) {
+        dailyReturn = Math.log(priceInfo.current / priceInfo.previous_close);
       }
-      
+
       // Get historical prices from the API response or fallback
       let historicalPrices = [];
       if (priceInfo.historical_prices && priceInfo.historical_prices.length >= 5) {
@@ -164,7 +164,7 @@ async function analyzePortfolio(symbols, quantities, confidenceLevel, timeHorizo
           priceInfo.current
         ];
       }
-      
+
       // Fetch forecast data
       let forecastPrices = [];
       try {
@@ -178,17 +178,29 @@ async function analyzePortfolio(symbols, quantities, confidenceLevel, timeHorizo
       } catch (error) {
         console.error(`Error fetching forecast for ${symbol}:`, error);
       }
-      
-      // If forecast fetch failed, use a simple projection based on recent returns
+
+      // GBM-based stochastic forecast (replaces deterministic geometric projection)
       if (forecastPrices.length === 0) {
         const lastPrice = historicalPrices[historicalPrices.length - 1];
-        const avgReturn = historicalPrices.length > 1 ? 
-          (historicalPrices[historicalPrices.length - 1] / historicalPrices[0]) ** (1 / (historicalPrices.length - 1)) - 1 : 0;
-        forecastPrices = Array(7).fill(0).map((_, i) => 
-          lastPrice * Math.pow(1 + avgReturn, i + 1)
-        );
+        // Compute log returns from historical prices for mu/sigma
+        const logRets = [];
+        for (let k = 1; k < historicalPrices.length; k++) {
+          if (historicalPrices[k - 1] > 0) {
+            logRets.push(Math.log(historicalPrices[k] / historicalPrices[k - 1]));
+          }
+        }
+        const mu = logRets.length > 0 ? logRets.reduce((s, r) => s + r, 0) / logRets.length : 0;
+        const sigma = logRets.length > 1
+          ? Math.sqrt(logRets.reduce((s, r) => s + Math.pow(r - mu, 2), 0) / (logRets.length - 1))
+          : Math.abs(mu) * 0.5 || 0.01;
+        // S(t) = S(0) * exp((mu - 0.5*sigma^2)*t + sigma*W_t)
+        forecastPrices = Array(7).fill(0).map((_, i) => {
+          const t = i + 1;
+          const W = gaussianRandom();
+          return lastPrice * Math.exp((mu - 0.5 * sigma * sigma) * t + sigma * Math.sqrt(t) * W);
+        });
       }
-      
+
       portfolioData.push({
         symbol: symbol,
         name: symbolNameMap[symbol] || symbol,
@@ -213,67 +225,173 @@ async function analyzePortfolio(symbols, quantities, confidenceLevel, timeHorizo
       });
     }
   }
-  
+
   // Calculate weights
   portfolioData.forEach(stock => {
     stock.weight = totalValue > 0 ? (stock.value / totalValue) * 100 : 0;
   });
-  
+
   // Calculate risk metrics
   const riskMetrics = calculateRiskMetrics(portfolioData, confidenceLevel, timeHorizon);
-  
+
   // Update UI
   updateRiskMetrics(riskMetrics, totalValue);
   updatePortfolioTable();
   createPriceChart();
   createAllocationChart();
   createForecastChart();
-  
+
   // Show results section
   document.getElementById('resultsSection').style.display = 'block';
 
   // Scroll to results
-  document.getElementById('resultsSection').scrollIntoView({ 
-    behavior: 'smooth' 
+  document.getElementById('resultsSection').scrollIntoView({
+    behavior: 'smooth'
   });
 }
 
-function calculateRiskMetrics(portfolio, confidenceLevel, timeHorizon) {
-  // Calculate portfolio variance using weights and correlations
-  let portfolioVariance = 0;
-  const portfolioReturn = portfolio.reduce((sum, stock) => sum + (stock.dailyReturn * stock.weight / 100), 0);
-  
-  // Simplified calculation (in reality, you'd use correlation matrix)
-  portfolio.forEach(stock => {
-    const weight = stock.weight / 100;
-    portfolioVariance += Math.pow(weight * stock.dailyReturn, 2);
-  });
-  
-  const portfolioVolatility = Math.sqrt(portfolioVariance) * Math.sqrt(252); // Annualized
-  const portfolioValue = portfolio.reduce((sum, stock) => sum + stock.value, 0);
-  
-  // Calculate VaR
-  let zScore;
-  switch(confidenceLevel) {
-    case '90':
-      zScore = 1.282; // For 90% confidence
-      break;
-    case '95':
-      zScore = 1.645; // For 95% confidence
-      break;
-    case '99':
-    default:
-      zScore = 2.326; // For 99% confidence
+// ─── Statistical helper functions ───────────────────────────────────────────
+
+/** Box-Muller transform: returns a standard normal sample */
+function gaussianRandom() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+/**
+ * Build an N×N sample covariance matrix from log-return series.
+ * @param {number[][]} logReturnSeries  Array of per-asset log-return arrays
+ * @returns {number[][]}
+ */
+function calculateCovarianceMatrix(logReturnSeries) {
+  const n = logReturnSeries.length;
+  const means = logReturnSeries.map(r => r.reduce((s, x) => s + x, 0) / (r.length || 1));
+  const cov = Array.from({ length: n }, () => Array(n).fill(0));
+
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const T = Math.min(logReturnSeries[i].length, logReturnSeries[j].length);
+      if (T < 2) { cov[i][j] = 0; continue; }
+      let sum = 0;
+      for (let t = 0; t < T; t++) {
+        sum += (logReturnSeries[i][t] - means[i]) * (logReturnSeries[j][t] - means[j]);
+      }
+      cov[i][j] = sum / (T - 1);
+    }
   }
-  const dailyVolatility = portfolioVolatility / Math.sqrt(252);
-  const varValue = portfolioValue * zScore * dailyVolatility * Math.sqrt(parseInt(timeHorizon));
-  
-  // Calculate CVaR (simplified)
-  const cvarValue = varValue * 1.2; // CVaR is typically 20-30% higher than VaR
-  
+  return cov;
+}
+
+/**
+ * Compute portfolio variance from weights and covariance matrix.
+ * @param {number[]} weights
+ * @param {number[][]} covarianceMatrix
+ * @returns {number}
+ */
+function calculatePortfolioVariance(weights, covarianceMatrix) {
+  let variance = 0;
+  for (let i = 0; i < weights.length; i++) {
+    for (let j = 0; j < weights.length; j++) {
+      variance += weights[i] * weights[j] * covarianceMatrix[i][j];
+    }
+  }
+  return variance;
+}
+
+/**
+ * Analytical CVaR under normality.
+ * @param {number} z          – z-score for the chosen confidence level
+ * @param {number} sigma      – daily portfolio volatility (decimal)
+ * @param {number} portfolioValue
+ * @param {number} confidence – e.g. 0.99
+ * @returns {number}
+ */
+function calculateCVaR(z, sigma, portfolioValue, confidence) {
+  const pdf = (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * z * z);
+  return (pdf / (1 - confidence)) * sigma * portfolioValue;
+}
+
+/**
+ * Monte Carlo VaR.
+ * @param {number} portfolioValue
+ * @param {number} mu         – daily expected return
+ * @param {number} sigma      – daily volatility
+ * @param {number} simulations
+ * @param {number} confidence – e.g. 0.99
+ * @returns {number}          – VaR as a positive dollar loss
+ */
+function monteCarloVaR(portfolioValue, mu, sigma, simulations, confidence) {
+  const results = [];
+  for (let i = 0; i < simulations; i++) {
+    const randomShock = mu + sigma * gaussianRandom();
+    results.push(portfolioValue * randomShock);
+  }
+  results.sort((a, b) => a - b);
+  const index = Math.floor((1 - confidence) * simulations);
+  return Math.abs(results[index]);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+function calculateRiskMetrics(portfolio, confidenceLevel, timeHorizon) {
+  // --- Confidence level z-score mapping ---
+  let zScore;
+  switch (String(confidenceLevel)) {
+    case '90': zScore = 1.282; break;
+    case '95': zScore = 1.645; break;
+    case '99':
+    default: zScore = 2.326;
+  }
+  const confidenceFraction = parseInt(confidenceLevel) / 100;
+
+  const portfolioValue = portfolio.reduce((sum, stock) => sum + stock.value, 0);
+  const weights = portfolio.map(stock => stock.weight / 100);
+
+  // --- Log returns for each asset ---
+  const logReturnSeries = portfolio.map(stock => {
+    const prices = stock.historicalPrices;
+    const returns = [];
+    for (let t = 1; t < prices.length; t++) {
+      if (prices[t - 1] > 0) {
+        returns.push(Math.log(prices[t] / prices[t - 1]));
+      } else {
+        returns.push(0);
+      }
+    }
+    return returns;
+  });
+
+  // --- Covariance-based portfolio variance (daily) ---
+  const covMatrix = calculateCovarianceMatrix(logReturnSeries);
+  const dailyVariance = calculatePortfolioVariance(weights, covMatrix);
+  const dailyVolatility = Math.sqrt(dailyVariance);
+  const portfolioVolatility = dailyVolatility * Math.sqrt(252); // annualised
+
+  // --- Portfolio expected daily return (weighted log returns) ---
+  const portfolioMu = portfolio.reduce((sum, stock, i) => {
+    const series = logReturnSeries[i];
+    const meanReturn = series.length > 0
+      ? series.reduce((s, x) => s + x, 0) / series.length
+      : 0;
+    return sum + weights[i] * meanReturn;
+  }, 0);
+
+  // --- Parametric VaR (scaled to time horizon) ---
+  const scaledVol = dailyVolatility * Math.sqrt(parseInt(timeHorizon));
+  const varValue = portfolioValue * zScore * scaledVol;
+
+  // --- Analytical CVaR (normal distribution) ---
+  const cvarValue = calculateCVaR(zScore, scaledVol, portfolioValue, confidenceFraction);
+
+  // --- Monte Carlo VaR (10,000 simulations, 1-day horizon) ---
+  const mcVaR = monteCarloVaR(portfolioValue, portfolioMu, dailyVolatility, 10000, confidenceFraction);
+
   return {
     var: varValue,
     cvar: cvarValue,
+    mcVar: mcVaR,
     volatility: portfolioVolatility * 100,
     portfolioValue: portfolioValue
   };
@@ -284,7 +402,7 @@ function updateRiskMetrics(metrics, totalValue) {
   document.getElementById('cvarValue').textContent = `$${metrics.cvar.toFixed(2)}`;
   document.getElementById('volatilityValue').textContent = `${metrics.volatility.toFixed(2)}%`;
   document.getElementById('portfolioValue').textContent = `$${totalValue.toLocaleString()}`;
-  
+
   const confidenceLevel = document.getElementById('confidenceLevel').value;
   document.getElementById('varDetail').textContent = `${confidenceLevel}% Confidence`;
 }
@@ -292,7 +410,7 @@ function updateRiskMetrics(metrics, totalValue) {
 function updatePortfolioTable() {
   const tbody = document.getElementById('portfolioTableBody');
   tbody.innerHTML = '';
-  
+
   portfolioData.forEach(stock => {
     const row = document.createElement('tr');
     row.innerHTML = `
@@ -325,11 +443,11 @@ function updatePortfolioTable() {
 
 function createPriceChart() {
   const ctx = document.getElementById('priceChart').getContext('2d');
-  
+
   if (priceChart) {
     priceChart.destroy();
   }
-  
+
   const labels = ['5 days ago', '4 days ago', '3 days ago', '2 days ago', 'Yesterday'];
   const datasets = portfolioData.map((stock, index) => ({
     label: stock.symbol,
@@ -340,7 +458,7 @@ function createPriceChart() {
     fill: false,
     tension: 0.4
   }));
-  
+
   priceChart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -363,7 +481,7 @@ function createPriceChart() {
         y: {
           beginAtZero: false,
           ticks: {
-            callback: function(value) {
+            callback: function (value) {
               return '$' + value.toFixed(2);
             }
           }
@@ -379,15 +497,15 @@ function createPriceChart() {
 
 function createAllocationChart() {
   const ctx = document.getElementById('allocationChart').getContext('2d');
-  
+
   if (allocationChart) {
     allocationChart.destroy();
   }
-  
+
   const labels = portfolioData.map(stock => stock.symbol);
   const data = portfolioData.map(stock => stock.weight);
   const colors = portfolioData.map((_, index) => getChartColor(index));
-  
+
   allocationChart = new Chart(ctx, {
     type: 'doughnut',
     data: {
@@ -417,16 +535,16 @@ function createAllocationChart() {
 
 function createForecastChart() {
   const container = document.getElementById('forecastChart');
-  
+
   // Prepare data for Plotly
   const traces = [];
-  
+
   // Historical data
   if (document.getElementById('showHistorical').checked) {
     portfolioData.forEach((stock, index) => {
       const historicalDates = [];
       const historicalPrices = [];
-      
+
       // Generate dates for historical data
       for (let i = 4; i >= 0; i--) {
         const date = new Date();
@@ -434,7 +552,7 @@ function createForecastChart() {
         historicalDates.push(date.toISOString().split('T')[0]);
         historicalPrices.push(stock.historicalPrices[4 - i]);
       }
-      
+
       traces.push({
         x: historicalDates,
         y: historicalPrices,
@@ -451,13 +569,13 @@ function createForecastChart() {
       });
     });
   }
-  
+
   // Forecast data
   if (document.getElementById('showForecast').checked) {
     portfolioData.forEach((stock, index) => {
       const forecastDates = [];
       const forecastPrices = [];
-      
+
       // Generate dates for forecast data
       for (let i = 1; i <= 7; i++) {
         const date = new Date();
@@ -465,7 +583,7 @@ function createForecastChart() {
         forecastDates.push(date.toISOString().split('T')[0]);
         forecastPrices.push(stock.forecastPrices[i - 1]);
       }
-      
+
       traces.push({
         x: forecastDates,
         y: forecastPrices,
@@ -483,7 +601,7 @@ function createForecastChart() {
       });
     });
   }
-  
+
   const layout = {
     title: {
       text: '7-Day Stock Price Forecast',
@@ -505,13 +623,13 @@ function createForecastChart() {
     },
     margin: { t: 60, b: 80, l: 60, r: 40 }
   };
-  
+
   const config = {
     responsive: true,
     displayModeBar: true,
     modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d']
   };
-  
+
   Plotly.newPlot(container, traces, layout, config);
 }
 
@@ -546,7 +664,7 @@ function hideLoadingOverlay() {
 function clearForm() {
   document.getElementById('portfolioForm').reset();
   document.getElementById('resultsSection').style.display = 'none';
-  
+
   // Clear charts
   if (priceChart) {
     priceChart.destroy();
@@ -560,7 +678,7 @@ function clearForm() {
     Plotly.purge('forecastChart');
     forecastChart = null;
   }
-  
+
   // Reset portfolio data
   portfolioData = [];
 }
