@@ -94,15 +94,31 @@ function handleFormSubmit(e) {
   // Show loading overlay
   showLoadingOverlay();
 
-  // Simulate API call delay
-  setTimeout(() => {
-    assessCreditRisk(income, loanAmount, creditScore, employmentStatus, loanTerm);
-    hideLoadingOverlay();
-  }, 2000);
+  const selfEmployed = (employmentStatus === 'self-employed' || employmentStatus === 'contractor') ? 1 : 0;
+
+  fetch('/predict-loan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      self_employed: selfEmployed,
+      income_annum: income,
+      loan_amount: loanAmount,
+      loan_term: parseInt(loanTerm),
+      cibil_score: creditScore
+    })
+  })
+    .then(res => res.json())
+    .then(mlResult => {
+      assessCreditRisk(income, loanAmount, creditScore, employmentStatus, loanTerm, mlResult);
+      hideLoadingOverlay();
+    })
+    .catch(() => {
+      assessCreditRisk(income, loanAmount, creditScore, employmentStatus, loanTerm, null);
+      hideLoadingOverlay();
+    });
 }
 
-function assessCreditRisk(income, loanAmount, creditScore, employment, term) {
-  // Store credit data
+function assessCreditRisk(income, loanAmount, creditScore, employment, term, mlResult) {
   creditData = {
     income: income,
     loanAmount: loanAmount,
@@ -111,19 +127,22 @@ function assessCreditRisk(income, loanAmount, creditScore, employment, term) {
     term: parseInt(term)
   };
 
-  // Calculate risk metrics
   const riskMetrics = calculateRiskMetrics(income, loanAmount, creditScore, employment, term);
 
-  // Make loan decision
+  if (mlResult && !mlResult.error) {
+    riskMetrics.mlPrediction = {
+      status: mlResult.loan_status,
+      confidence: mlResult.confidence
+    };
+  }
+
   const decision = makeLoanDecision(riskMetrics);
 
-  // Update UI
   updateDecisionCard(decision, riskMetrics);
   updateRiskMetrics(riskMetrics);
   createRiskScoreChart(riskMetrics);
   createDefaultTrendChart();
 
-  // Show and scroll to results section
   const resultsSection = document.getElementById('resultsSection');
   if (resultsSection) {
     resultsSection.style.display = 'block';
@@ -314,6 +333,19 @@ function makeLoanDecision(riskMetrics) {
   };
 }
 
+function buildMlBadgeHTML(mlPrediction) {
+  if (!mlPrediction) return '';
+  const isApproved = mlPrediction.status === 'Approved';
+  const badgeClass = isApproved ? 'bg-success' : 'bg-danger';
+  const icon = isApproved ? 'fa-check-circle' : 'fa-times-circle';
+  return `
+    <div class="mt-3 p-3" style="background: rgba(99,102,241,0.08); border-radius: 10px; border: 1px solid rgba(99,102,241,0.2);">
+      <small class="text-muted d-block mb-1"><i class="fas fa-robot me-1"></i>ML Model Prediction</small>
+      <span class="badge ${badgeClass} me-2"><i class="fas ${icon} me-1"></i>${mlPrediction.status}</span>
+      <span class="text-muted">Confidence: <strong>${mlPrediction.confidence}%</strong></span>
+    </div>`;
+}
+
 function updateDecisionCard(decision, metrics) {
   const decisionCard = document.getElementById('decisionCard');
   const decisionStatus = document.getElementById('decisionStatus');
@@ -343,7 +375,7 @@ function updateDecisionCard(decision, metrics) {
     }
 
     decisionStatus.innerHTML = '<i class="fas fa-check-circle me-2"></i>High Approval Likelihood';
-    decisionMessage.textContent = approvalMessage;
+    decisionMessage.innerHTML = approvalMessage + buildMlBadgeHTML(metrics.mlPrediction);
     confidenceLevel.textContent = `${Math.round(metrics.riskScore)}%`;
     confidenceLevel.style.width = `${metrics.riskScore}%`;
     confidenceLevel.classList.remove('bg-danger');
@@ -401,7 +433,8 @@ function updateDecisionCard(decision, metrics) {
       </div>
     `;
 
-    // Update the UI
+    rejectionHTML += buildMlBadgeHTML(metrics.mlPrediction);
+
     decisionStatus.innerHTML = '<i class="fas fa-times-circle me-2"></i>Approval Unlikely';
     decisionMessage.innerHTML = rejectionHTML;
     confidenceLevel.textContent = `${Math.round(100 - metrics.riskScore)}%`;
@@ -637,6 +670,63 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 
+function populateStressTestTable(base, adverse) {
+  const tbody = document.getElementById('stressTestTableBody');
+  if (!tbody) return;
+
+  function pctChange(baseVal, advVal) {
+    if (baseVal === 0) return 'N/A';
+    return ((advVal - baseVal) / baseVal * 100).toFixed(1);
+  }
+
+  function changeClass(baseVal, advVal) {
+    const change = advVal - baseVal;
+    if (Math.abs(change) / (Math.abs(baseVal) || 1) > 0.5) return 'text-danger';
+    if (change > 0) return 'text-warning';
+    return 'text-success';
+  }
+
+  const rows = [
+    {
+      label: 'Probability of Default',
+      baseVal: `${base.pdPercent.toFixed(1)}%`,
+      advVal: `${adverse.pdPercent.toFixed(1)}%`,
+      change: `+${pctChange(base.pdPercent, adverse.pdPercent)}%`,
+      cls: changeClass(base.pdPercent, adverse.pdPercent)
+    },
+    {
+      label: 'Expected Loss',
+      baseVal: `$${base.el.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+      advVal: `$${adverse.el.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+      change: `+${pctChange(base.el, adverse.el)}%`,
+      cls: changeClass(base.el, adverse.el)
+    },
+    {
+      label: 'Risk-Weighted Assets',
+      baseVal: `$${base.rwa.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+      advVal: `$${adverse.rwa.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+      change: `+${pctChange(base.rwa, adverse.rwa)}%`,
+      cls: changeClass(base.rwa, adverse.rwa)
+    },
+    {
+      label: 'Monthly Payment',
+      baseVal: `$${base.monthlyPayment.toFixed(2)}`,
+      advVal: `$${adverse.monthlyPayment.toFixed(2)}`,
+      change: `+${pctChange(base.monthlyPayment, adverse.monthlyPayment)}%`,
+      cls: changeClass(base.monthlyPayment, adverse.monthlyPayment)
+    }
+  ];
+
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td><strong>${r.label}</strong></td>
+      <td class="text-center">${r.baseVal}</td>
+      <td class="text-center ${r.cls}">${r.advVal}</td>
+      <td class="text-center ${r.cls}">${r.change}</td>
+    </tr>
+  `).join('');
+}
+
 function createStressTestChart() {
   const ctx = document.getElementById('stressTestChart').getContext('2d');
 
@@ -646,7 +736,6 @@ function createStressTestChart() {
 
   if (!creditData.income) return;
 
-  // Calculate base case metrics
   const baseMetrics = calculateRiskMetrics(
     creditData.income,
     creditData.loanAmount,
@@ -655,17 +744,18 @@ function createStressTestChart() {
     creditData.term
   );
 
-  // Calculate adverse scenario metrics
   const adverseMetrics = calculateRiskMetrics(
-    creditData.income * 0.8, // 20% income reduction
+    creditData.income * 0.8,
     creditData.loanAmount,
-    Math.max(300, creditData.creditScore - 50), // 50 point credit score reduction
+    Math.max(300, creditData.creditScore - 50),
     creditData.employment,
     creditData.term
   );
 
+  populateStressTestTable(baseMetrics, adverseMetrics);
+
   const scenarios = ['Base Case', 'Adverse Scenario'];
-  const pdData = [baseMetrics.pd, adverseMetrics.pd];
+  const pdData = [baseMetrics.pdPercent, adverseMetrics.pdPercent];
   const elData = [baseMetrics.el, adverseMetrics.el];
   const rwaData = [baseMetrics.rwa, adverseMetrics.rwa];
 

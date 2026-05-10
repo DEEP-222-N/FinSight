@@ -202,37 +202,62 @@ def risk_metrics():
     portfolio = data.get('portfolio', [])
     confidence_level = str(data.get('confidenceLevel', '99'))
     time_horizon = int(data.get('timeHorizon', 1))
-    
-    # Calculate weights and daily returns
+
     total_value = sum(stock['currentPrice'] * stock['quantity'] for stock in portfolio)
-    
+
     for stock in portfolio:
         stock['value'] = stock['currentPrice'] * stock['quantity']
         stock['weight'] = (stock['value'] / total_value * 100) if total_value > 0 else 0
-    
-    # Portfolio variance (simplified, no correlation)
-    portfolio_variance = 0
-    for stock in portfolio:
-        weight = stock['weight'] / 100
-        daily_return = stock.get('dailyReturn', 0)
-        portfolio_variance += (weight * daily_return) ** 2
-    
-    portfolio_volatility = np.sqrt(portfolio_variance) * np.sqrt(252)  # annualized
+
+    symbols = [stock['symbol'] for stock in portfolio]
+    weights = np.array([stock['weight'] / 100 for stock in portfolio])
+
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=60)
+
+    log_returns_list = []
+    for symbol in symbols:
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(start=start_date, end=end_date, interval='1d')
+            if not hist.empty and len(hist) >= 2:
+                prices = hist['Close'].values
+                log_rets = np.diff(np.log(prices))
+                log_returns_list.append(log_rets)
+            else:
+                log_returns_list.append(np.array([0.0]))
+        except Exception:
+            log_returns_list.append(np.array([0.0]))
+
+    min_len = min(len(r) for r in log_returns_list)
+    aligned_returns = np.column_stack([r[-min_len:] for r in log_returns_list])
+
+    if min_len >= 2:
+        cov_matrix = np.cov(aligned_returns, rowvar=False)
+    else:
+        cov_matrix = np.zeros((len(symbols), len(symbols)))
+
+    daily_variance = float(weights @ cov_matrix @ weights)
+    daily_volatility = np.sqrt(daily_variance)
+    portfolio_volatility = daily_volatility * np.sqrt(252)
     portfolio_value = total_value
-    
-    # VaR
-    z_score = 1.645 if confidence_level == '95' else 2.326
-    daily_volatility = portfolio_volatility / np.sqrt(252)
-    var_value = portfolio_value * z_score * daily_volatility * np.sqrt(time_horizon)
-    
-    # CVaR (simplified)
-    cvar_value = var_value * 1.2
-    
+
+    z_scores = {'90': 1.282, '95': 1.645, '99': 2.326}
+    z_score = z_scores.get(confidence_level, 2.326)
+    confidence_fraction = int(confidence_level) / 100
+
+    scaled_vol = daily_volatility * np.sqrt(time_horizon)
+    var_value = portfolio_value * z_score * scaled_vol
+
+    # Analytical CVaR under normality: CVaR = (φ(z) / (1 - α)) × σ × P
+    pdf_z = (1 / np.sqrt(2 * np.pi)) * np.exp(-0.5 * z_score ** 2)
+    cvar_value = (pdf_z / (1 - confidence_fraction)) * scaled_vol * portfolio_value
+
     return jsonify({
-        'var': var_value,
-        'cvar': cvar_value,
-        'volatility': portfolio_volatility * 100,
-        'portfolioValue': portfolio_value
+        'var': float(var_value),
+        'cvar': float(cvar_value),
+        'volatility': float(portfolio_volatility * 100),
+        'portfolioValue': float(portfolio_value)
     })
 
 # Load the loan approval model
