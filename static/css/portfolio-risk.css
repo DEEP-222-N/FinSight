@@ -368,6 +368,25 @@ body {
   background: linear-gradient(135deg, var(--success-color), #059669);
 }
 
+.parametric-var-card .metric-icon {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+}
+
+.historical-var-card .metric-icon {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.montecarlo-var-card .metric-icon {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.metric-method {
+  font-size: var(--font-size-xs);
+  color: var(--gray-400);
+  margin-top: var(--spacing-1);
+  font-style: italic;
+}
+
 .metric-content {
   flex: 1;
 }

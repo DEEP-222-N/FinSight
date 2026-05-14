@@ -210,6 +210,54 @@
         </div>
       </div>
 
+      <!-- VaR Comparison Cards -->
+      <div class="row mb-5">
+        <div class="col-12">
+          <h2 class="section-title">
+            <i class="fas fa-shield-alt me-2"></i>VaR Methods Comparison
+          </h2>
+        </div>
+        <div class="col-lg-4 col-md-6 mb-4">
+          <div class="metric-card parametric-var-card">
+            <div class="metric-icon">
+              <i class="fas fa-square-root-alt"></i>
+            </div>
+            <div class="metric-content">
+              <div class="metric-label">Parametric VaR</div>
+              <div class="metric-value" id="parametricVarValue">$0</div>
+              <div class="metric-detail">Normal Distribution</div>
+              <div class="metric-method">Uses covariance matrix & z-score</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-4 col-md-6 mb-4">
+          <div class="metric-card historical-var-card">
+            <div class="metric-icon">
+              <i class="fas fa-history"></i>
+            </div>
+            <div class="metric-content">
+              <div class="metric-label">Historical VaR</div>
+              <div class="metric-value" id="historicalVarValue">$0</div>
+              <div class="metric-detail">Based on Actual Returns</div>
+              <div class="metric-method">Uses past return percentiles</div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-4 col-md-6 mb-4">
+          <div class="metric-card montecarlo-var-card">
+            <div class="metric-icon">
+              <i class="fas fa-dice"></i>
+            </div>
+            <div class="metric-content">
+              <div class="metric-label">Monte Carlo VaR</div>
+              <div class="metric-value" id="monteCarloVarValue">$0</div>
+              <div class="metric-detail">10,000 Simulations</div>
+              <div class="metric-method">Random scenario generation</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Portfolio Table -->
       <div class="row mb-5">
         <div class="col-12">
