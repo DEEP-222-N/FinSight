@@ -241,8 +241,10 @@ async function analyzePortfolio(symbols, quantities, confidenceLevel, timeHorizo
   createAllocationChart();
   createForecastChart();
 
-  // Show results section
+  // Show results section and AI sections
   document.getElementById('resultsSection').style.display = 'block';
+  document.getElementById('whatIfSection').style.display = 'block';
+  document.getElementById('reportSection').style.display = 'block';
 
   // Scroll to results
   document.getElementById('resultsSection').scrollIntoView({
@@ -665,6 +667,10 @@ function clearForm() {
   document.getElementById('portfolioForm').reset();
   document.getElementById('resultsSection').style.display = 'none';
 
+  // Hide AI sections
+  document.getElementById('whatIfSection').style.display = 'none';
+  document.getElementById('reportSection').style.display = 'none';
+
   // Clear charts
   if (priceChart) {
     priceChart.destroy();
@@ -709,3 +715,344 @@ style.textContent = `
   }
 `;
 document.head.appendChild(style);
+
+// ─── What-If Scenario Analyzer ──────────────────────────────────────────────
+
+let lastRiskMetrics = {};
+
+function fillWhatIf(text) {
+  document.getElementById('whatIfInput').value = text;
+}
+
+function analyzeWhatIf() {
+  const question = document.getElementById('whatIfInput').value.trim();
+  if (!question) {
+    alert('Please enter a "What If" question.');
+    return;
+  }
+
+  if (portfolioData.length === 0) {
+    alert('Please analyze your portfolio first.');
+    return;
+  }
+
+  const btn = document.getElementById('whatIfBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Analyzing...';
+
+  const resultDiv = document.getElementById('whatIfResult');
+  resultDiv.style.display = 'block';
+  document.getElementById('whatIfResponse').innerHTML = `
+    <div class="text-center py-4">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-3 text-muted">AI is analyzing your scenario...</p>
+    </div>`;
+
+  const portfolioPayload = portfolioData.map(stock => ({
+    symbol: stock.symbol,
+    quantity: stock.quantity,
+    currentPrice: stock.currentPrice,
+    weight: stock.weight,
+    dailyReturn: stock.dailyReturn
+  }));
+
+  fetch('/api/what-if', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      portfolio: portfolioPayload,
+      action: question
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    const responseDiv = document.getElementById('whatIfResponse');
+    if (typeof marked !== 'undefined') {
+      responseDiv.innerHTML = marked.parse(data.analysis);
+    } else {
+      responseDiv.innerHTML = data.analysis.replace(/\n/g, '<br>');
+    }
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-magic me-2"></i>Analyze';
+  })
+  .catch(err => {
+    document.getElementById('whatIfResponse').innerHTML = `
+      <div class="text-danger">
+        <i class="fas fa-exclamation-triangle me-2"></i>Failed to get AI analysis. Please try again.
+      </div>`;
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-magic me-2"></i>Analyze';
+  });
+}
+
+// ─── AI Report Generator ────────────────────────────────────────────────────
+
+function generateAIReport() {
+  if (portfolioData.length === 0) {
+    alert('Please analyze your portfolio first.');
+    return;
+  }
+
+  const btn = document.getElementById('generateReportBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Generating...';
+
+  const preview = document.getElementById('reportPreview');
+  preview.style.display = 'block';
+  document.getElementById('reportContent').innerHTML = `
+    <div class="text-center py-5">
+      <div class="spinner-border text-primary" role="status"></div>
+      <p class="mt-3 text-muted">AI is generating your professional report...</p>
+      <small class="text-muted">This may take 15-30 seconds</small>
+    </div>`;
+
+  const riskMetrics = {
+    var: parseFloat(document.getElementById('varValue').textContent.replace('$', '').replace(',', '')) || 0,
+    cvar: parseFloat(document.getElementById('cvarValue').textContent.replace('$', '').replace(',', '')) || 0,
+    volatility: parseFloat(document.getElementById('volatilityValue').textContent.replace('%', '')) || 0,
+    portfolioValue: parseFloat(document.getElementById('portfolioValue').textContent.replace('$', '').replace(/,/g, '')) || 0
+  };
+
+  lastRiskMetrics = riskMetrics;
+
+  const portfolioPayload = portfolioData.map(stock => ({
+    symbol: stock.symbol,
+    quantity: stock.quantity,
+    currentPrice: stock.currentPrice,
+    weight: stock.weight,
+    dailyReturn: stock.dailyReturn
+  }));
+
+  fetch('/api/generate-report', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      portfolio: portfolioPayload,
+      riskMetrics: riskMetrics,
+      confidenceLevel: document.getElementById('confidenceLevel').value,
+      timeHorizon: document.getElementById('timeHorizon').value
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    const contentDiv = document.getElementById('reportContent');
+    if (typeof marked !== 'undefined') {
+      contentDiv.innerHTML = marked.parse(data.report);
+    } else {
+      contentDiv.innerHTML = data.report.replace(/\n/g, '<br>');
+    }
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-magic me-2"></i>Generate Report';
+  })
+  .catch(err => {
+    document.getElementById('reportContent').innerHTML = `
+      <div class="text-center text-danger py-4">
+        <i class="fas fa-exclamation-triangle fa-2x mb-3"></i>
+        <p>Failed to generate report. Please try again.</p>
+      </div>`;
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-magic me-2"></i>Generate Report';
+  });
+}
+
+function downloadReportPDF() {
+  const { jsPDF } = window.jspdf;
+  if (!jsPDF) {
+    alert('PDF library not loaded. Please refresh and try again.');
+    return;
+  }
+
+  const btn = document.querySelector('[onclick="downloadReportPDF()"]');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Creating PDF...';
+
+  const pdf = new jsPDF('p', 'mm', 'a4');
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 18;
+  const contentWidth = pageWidth - (margin * 2);
+  let y = 0;
+
+  function checkPage(needed) {
+    if (y + needed > pageHeight - 15) {
+      addFooter();
+      pdf.addPage();
+      y = 15;
+    }
+  }
+
+  function addFooter() {
+    pdf.setFontSize(7);
+    pdf.setTextColor(160, 160, 160);
+    pdf.setFont('helvetica', 'normal');
+    const pg = pdf.internal.getNumberOfPages();
+    pdf.text(`FinSight AI Report  |  Page ${pg}`, margin, pageHeight - 8);
+    pdf.text('Powered by Groq AI', pageWidth - margin - 32, pageHeight - 8);
+  }
+
+  // ── Header Banner ──
+  pdf.setFillColor(99, 102, 241);
+  pdf.rect(0, 0, pageWidth, 38, 'F');
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFontSize(22);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('FinSight Portfolio Risk Report', margin, 18);
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text(`Generated: ${new Date().toLocaleString()}`, margin, 28);
+  pdf.text(`Confidence: ${document.getElementById('confidenceLevel').value}%  |  Horizon: ${document.getElementById('timeHorizon').value} Day(s)`, margin, 34);
+
+  // ── Metrics Bar ──
+  pdf.setFillColor(243, 244, 246);
+  pdf.rect(0, 40, pageWidth, 18, 'F');
+  pdf.setTextColor(55, 65, 81);
+  pdf.setFontSize(9);
+  pdf.setFont('helvetica', 'bold');
+  const my = 51;
+  pdf.text(`Portfolio: $${(lastRiskMetrics.portfolioValue || 0).toLocaleString()}`, margin, my);
+  pdf.text(`VaR: $${(lastRiskMetrics.var || 0).toFixed(2)}`, margin + 50, my);
+  pdf.text(`CVaR: $${(lastRiskMetrics.cvar || 0).toFixed(2)}`, margin + 95, my);
+  pdf.text(`Volatility: ${(lastRiskMetrics.volatility || 0).toFixed(2)}%`, margin + 140, my);
+
+  // ── Holdings Table ──
+  y = 64;
+  pdf.setFontSize(12);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(30, 30, 30);
+  pdf.text('Portfolio Holdings', margin, y);
+  y += 6;
+
+  // Table header
+  pdf.setFillColor(99, 102, 241);
+  pdf.rect(margin, y, contentWidth, 7, 'F');
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFontSize(8);
+  pdf.setFont('helvetica', 'bold');
+  const cols = [margin + 2, margin + 22, margin + 42, margin + 68, margin + 95, margin + 130];
+  pdf.text('Symbol', cols[0], y + 5);
+  pdf.text('Qty', cols[1], y + 5);
+  pdf.text('Price', cols[2], y + 5);
+  pdf.text('Weight', cols[3], y + 5);
+  pdf.text('Value', cols[4], y + 5);
+  pdf.text('Return', cols[5], y + 5);
+  y += 9;
+
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(55, 65, 81);
+  portfolioData.forEach((stock, i) => {
+    checkPage(7);
+    if (i % 2 === 0) {
+      pdf.setFillColor(249, 250, 251);
+      pdf.rect(margin, y - 4, contentWidth, 7, 'F');
+    }
+    pdf.setTextColor(55, 65, 81);
+    pdf.setFontSize(8);
+    pdf.text(stock.symbol, cols[0], y);
+    pdf.text(String(stock.quantity), cols[1], y);
+    pdf.text(`$${stock.currentPrice.toFixed(2)}`, cols[2], y);
+    pdf.text(`${stock.weight.toFixed(1)}%`, cols[3], y);
+    pdf.text(`$${stock.value.toLocaleString()}`, cols[4], y);
+    const ret = (stock.dailyReturn * 100).toFixed(2);
+    if (stock.dailyReturn >= 0) {
+      pdf.setTextColor(16, 185, 129);
+      pdf.text(`+${ret}%`, cols[5], y);
+    } else {
+      pdf.setTextColor(239, 68, 68);
+      pdf.text(`${ret}%`, cols[5], y);
+    }
+    y += 7;
+  });
+
+  y += 6;
+
+  // ── Divider ──
+  pdf.setDrawColor(200, 200, 200);
+  pdf.line(margin, y, pageWidth - margin, y);
+  y += 8;
+
+  // ── AI Report Content ──
+  pdf.setFontSize(12);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(30, 30, 30);
+  checkPage(10);
+  pdf.text('AI Analysis Report', margin, y);
+  y += 8;
+
+  const reportEl = document.getElementById('reportContent');
+  const textContent = reportEl.innerText || reportEl.textContent;
+  const lines = textContent.split('\n');
+
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      y += 3;
+      return;
+    }
+
+    const isHeading = /^\d+\.\s/.test(trimmed) || trimmed.startsWith('#');
+    const cleanLine = trimmed.replace(/^#+\s*/, '');
+
+    if (isHeading) {
+      checkPage(12);
+      y += 3;
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(99, 102, 241);
+      const headingLines = pdf.splitTextToSize(cleanLine, contentWidth);
+      headingLines.forEach(hl => {
+        checkPage(6);
+        pdf.text(hl, margin, y);
+        y += 6;
+      });
+      // underline
+      pdf.setDrawColor(99, 102, 241);
+      pdf.setLineWidth(0.3);
+      pdf.line(margin, y - 2, margin + 60, y - 2);
+      y += 2;
+    } else {
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(55, 65, 81);
+
+      const isBullet = trimmed.startsWith('-') || trimmed.startsWith('•');
+      const textLine = isBullet ? trimmed.substring(1).trim() : trimmed;
+      const xOffset = isBullet ? margin + 5 : margin;
+      const wrapWidth = isBullet ? contentWidth - 5 : contentWidth;
+
+      const wrapped = pdf.splitTextToSize(textLine, wrapWidth);
+      wrapped.forEach((wl, wi) => {
+        checkPage(5);
+        if (isBullet && wi === 0) {
+          pdf.setFillColor(99, 102, 241);
+          pdf.circle(margin + 1.5, y - 1.2, 0.8, 'F');
+        }
+        pdf.text(wl, wi === 0 ? xOffset : xOffset, y);
+        y += 4.5;
+      });
+      y += 1;
+    }
+  });
+
+  // ── Footer on all pages ──
+  addFooter();
+  const totalPages = pdf.internal.getNumberOfPages();
+  for (let i = 1; i < totalPages; i++) {
+    pdf.setPage(i);
+    pdf.setFontSize(7);
+    pdf.setTextColor(160, 160, 160);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`FinSight AI Report  |  Page ${i} of ${totalPages}`, margin, pageHeight - 8);
+    pdf.text('Powered by Groq AI', pageWidth - margin - 32, pageHeight - 8);
+  }
+  // Fix last page footer too
+  pdf.setPage(totalPages);
+  pdf.setFontSize(7);
+  pdf.setTextColor(160, 160, 160);
+  pdf.text(`FinSight AI Report  |  Page ${totalPages} of ${totalPages}`, margin, pageHeight - 8);
+  pdf.text('Powered by Groq AI', pageWidth - margin - 32, pageHeight - 8);
+
+  pdf.save(`FinSight_Portfolio_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fas fa-download me-2"></i>Download PDF';
+}

@@ -37,6 +37,10 @@ except Exception as e:
 FINNHUB_API_KEY = os.getenv('FINNHUB_API_KEY')
 FINNHUB_BASE_URL = 'https://finnhub.io/api/v1/quote'
 
+# Groq API key
+XAI_API_KEY = os.getenv('XAI_API_KEY')
+XAI_BASE_URL = 'https://api.groq.com/openai/v1/chat/completions'
+
 @app.route('/')
 def home():
     return render_template('index.html')
@@ -330,6 +334,219 @@ def predict_loan():
         
     except Exception as e:
         return jsonify({'error': f'Prediction failed: {str(e)}'}), 500
+
+def call_grok(prompt, max_tokens=1024):
+    if not XAI_API_KEY or XAI_API_KEY.startswith('your-'):
+        return None
+    try:
+        resp = requests.post(XAI_BASE_URL, headers={
+            'Authorization': f'Bearer {XAI_API_KEY}',
+            'Content-Type': 'application/json'
+        }, json={
+            'model': 'llama-3.3-70b-versatile',
+            'messages': [
+                {'role': 'system', 'content': 'You are a senior financial analyst at a top investment bank. Give concise, data-driven insights. Use bullet points. Be specific with numbers. Always include actionable recommendations.'},
+                {'role': 'user', 'content': prompt}
+            ],
+            'max_tokens': max_tokens,
+            'temperature': 0.7
+        }, timeout=30)
+        if resp.status_code == 200:
+            return resp.json()['choices'][0]['message']['content']
+    except Exception as e:
+        print(f"Grok API error: {e}")
+    return None
+
+
+@app.route('/market-pulse')
+def market_pulse():
+    return render_template('market-pulse.html')
+
+
+@app.route('/api/market-pulse', methods=['GET'])
+def get_market_pulse():
+    indices = {
+        '^GSPC': 'S&P 500',
+        '^DJI': 'Dow Jones',
+        '^IXIC': 'NASDAQ',
+        '^RUT': 'Russell 2000'
+    }
+    sectors = {
+        'XLK': 'Technology', 'XLF': 'Financials', 'XLV': 'Healthcare',
+        'XLE': 'Energy', 'XLY': 'Consumer Disc.', 'XLP': 'Consumer Staples',
+        'XLI': 'Industrials', 'XLU': 'Utilities', 'XLRE': 'Real Estate',
+        'XLB': 'Materials', 'XLC': 'Communication'
+    }
+    top_movers_symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'JPM', 'V', 'WMT']
+
+    index_data = {}
+    for symbol, name in indices.items():
+        try:
+            t = yf.Ticker(symbol)
+            hist = t.history(period='5d')
+            if not hist.empty and len(hist) >= 2:
+                current = hist['Close'].iloc[-1]
+                prev = hist['Close'].iloc[-2]
+                change_pct = ((current - prev) / prev) * 100
+                index_data[name] = {
+                    'price': round(float(current), 2),
+                    'change': round(float(change_pct), 2),
+                    'prev_close': round(float(prev), 2)
+                }
+        except Exception as e:
+            print(f"Error fetching {symbol}: {e}")
+
+    sector_data = {}
+    for symbol, name in sectors.items():
+        try:
+            t = yf.Ticker(symbol)
+            hist = t.history(period='5d')
+            if not hist.empty and len(hist) >= 2:
+                current = hist['Close'].iloc[-1]
+                prev = hist['Close'].iloc[-2]
+                change_pct = ((current - prev) / prev) * 100
+                sector_data[name] = {
+                    'price': round(float(current), 2),
+                    'change': round(float(change_pct), 2)
+                }
+        except Exception:
+            pass
+
+    movers = []
+    for symbol in top_movers_symbols:
+        try:
+            t = yf.Ticker(symbol)
+            hist = t.history(period='5d')
+            if not hist.empty and len(hist) >= 2:
+                current = hist['Close'].iloc[-1]
+                prev = hist['Close'].iloc[-2]
+                change_pct = ((current - prev) / prev) * 100
+                movers.append({
+                    'symbol': symbol,
+                    'price': round(float(current), 2),
+                    'change': round(float(change_pct), 2),
+                    'volume': int(hist['Volume'].iloc[-1])
+                })
+        except Exception:
+            pass
+
+    movers.sort(key=lambda x: abs(x['change']), reverse=True)
+
+    market_summary = f"Market Data:\n"
+    for name, data in index_data.items():
+        market_summary += f"- {name}: ${data['price']} ({data['change']:+.2f}%)\n"
+    market_summary += f"\nSector Performance:\n"
+    for name, data in sector_data.items():
+        market_summary += f"- {name}: {data['change']:+.2f}%\n"
+    market_summary += f"\nTop Movers:\n"
+    for m in movers[:5]:
+        market_summary += f"- {m['symbol']}: ${m['price']} ({m['change']:+.2f}%)\n"
+
+    ai_prompt = f"""Analyze today's market data and provide:
+1. **Market Overview** (2-3 sentences on overall market direction)
+2. **Key Drivers** (what's driving today's moves)
+3. **Sector Rotation** (which sectors are gaining/losing momentum and why)
+4. **Top Movers Analysis** (why are the biggest movers moving)
+5. **Outlook** (short-term outlook for next few days)
+
+{market_summary}"""
+
+    ai_commentary = call_grok(ai_prompt, max_tokens=1500)
+
+    return jsonify({
+        'indices': index_data,
+        'sectors': sector_data,
+        'movers': movers,
+        'ai_commentary': ai_commentary,
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    })
+
+
+@app.route('/api/what-if', methods=['POST'])
+def what_if_analysis():
+    data = request.get_json()
+    current_portfolio = data.get('portfolio', [])
+    action = data.get('action', '')
+
+    portfolio_summary = "Current Portfolio:\n"
+    for stock in current_portfolio:
+        portfolio_summary += f"- {stock['symbol']}: {stock['quantity']} shares @ ${stock['currentPrice']} (Weight: {stock.get('weight', 0):.1f}%)\n"
+
+    prompt = f"""{portfolio_summary}
+
+User's Question: {action}
+
+Analyze this "What If" scenario:
+1. **Impact on Portfolio Risk** - How would VaR, volatility, and diversification change?
+2. **Concentration Risk** - Would this increase or decrease sector/stock concentration?
+3. **Expected Return Impact** - How might expected returns change?
+4. **Recommendation** - Should the user proceed? What's the better alternative?
+
+Be specific with numbers and percentages. Give a clear YES/NO recommendation with reasoning."""
+
+    ai_response = call_grok(prompt, max_tokens=1200)
+
+    if not ai_response:
+        ai_response = "AI analysis is currently unavailable. Please check your Grok API key in the .env file."
+
+    return jsonify({
+        'analysis': ai_response,
+        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    })
+
+
+@app.route('/api/generate-report', methods=['POST'])
+def generate_report():
+    data = request.get_json()
+    portfolio = data.get('portfolio', [])
+    risk_metrics = data.get('riskMetrics', {})
+    confidence = data.get('confidenceLevel', '99')
+    time_horizon = data.get('timeHorizon', '1')
+
+    portfolio_summary = ""
+    for stock in portfolio:
+        portfolio_summary += f"- {stock['symbol']}: {stock['quantity']} shares @ ${stock['currentPrice']:.2f}, Weight: {stock.get('weight', 0):.1f}%, Daily Return: {stock.get('dailyReturn', 0)*100:.2f}%\n"
+
+    prompt = f"""Generate a professional portfolio risk analysis report:
+
+**Portfolio Holdings:**
+{portfolio_summary}
+
+**Risk Metrics (Confidence: {confidence}%, Horizon: {time_horizon} day(s)):**
+- Value at Risk (VaR): ${risk_metrics.get('var', 0):.2f}
+- Conditional VaR (CVaR): ${risk_metrics.get('cvar', 0):.2f}
+- Portfolio Volatility: {risk_metrics.get('volatility', 0):.2f}%
+- Total Portfolio Value: ${risk_metrics.get('portfolioValue', 0):,.2f}
+
+Write a comprehensive report with these sections:
+1. **Executive Summary** - Key findings in 3-4 sentences
+2. **Portfolio Composition Analysis** - Holdings breakdown, concentration risks, sector exposure
+3. **Risk Assessment** - Detailed interpretation of VaR, CVaR, volatility. What do these numbers mean?
+4. **Stress Scenarios** - What happens in a market crash (-20%), moderate decline (-10%), sector rotation?
+5. **Recommendations** - 4-5 specific, actionable steps to optimize the portfolio
+6. **Conclusion** - Overall risk rating (Conservative/Moderate/Aggressive) and final thoughts
+
+Use professional financial language. Be specific with numbers."""
+
+    ai_report = call_grok(prompt, max_tokens=2000)
+
+    if not ai_report:
+        ai_report = "AI report generation is currently unavailable. Please check your Grok API key."
+
+    return jsonify({
+        'report': ai_report,
+        'generated_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'portfolio_summary': {
+            'total_value': risk_metrics.get('portfolioValue', 0),
+            'var': risk_metrics.get('var', 0),
+            'cvar': risk_metrics.get('cvar', 0),
+            'volatility': risk_metrics.get('volatility', 0),
+            'confidence': confidence,
+            'time_horizon': time_horizon,
+            'holdings_count': len(portfolio)
+        }
+    })
+
 
 if __name__ == '__main__':
     app.run()

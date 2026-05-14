@@ -14,6 +14,11 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- Plotly.js -->
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <!-- Marked.js for Markdown -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- jsPDF + html2canvas for PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <link rel="stylesheet" href="../static/css/portfolio-risk.css">
 </head>
 <body>
@@ -38,6 +43,9 @@
         </li>
         <li class="nav-item">
           <a class="nav-link" href="/credit-risk.html">Credit Risk</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="/market-pulse">AI Market Pulse</a>
         </li>
       </ul>
     </div>
@@ -290,6 +298,90 @@
         </div>
       </div>
 
+    </section>
+
+    <!-- What-If Scenario Analyzer -->
+    <section class="what-if-section" id="whatIfSection" style="display: none;">
+      <div class="row mb-5">
+        <div class="col-12">
+          <h2 class="section-title">
+            <i class="fas fa-flask me-2"></i>AI "What If" Scenario Analyzer
+            <span class="ai-badge ms-3">Powered by Grok</span>
+          </h2>
+        </div>
+        <div class="col-lg-8 mx-auto">
+          <div class="what-if-card">
+            <div class="what-if-header">
+              <div class="what-if-icon">
+                <i class="fas fa-brain"></i>
+              </div>
+              <div>
+                <h4>Ask AI About Your Portfolio</h4>
+                <p class="mb-0 text-muted">Ask any "what if" question about your portfolio changes</p>
+              </div>
+            </div>
+            <div class="what-if-body">
+              <div class="what-if-suggestions mb-3">
+                <small class="text-muted d-block mb-2">Try asking:</small>
+                <button class="btn btn-suggestion" onclick="fillWhatIf('What if I sell all AAPL shares and buy TSLA instead?')">Swap AAPL for TSLA?</button>
+                <button class="btn btn-suggestion" onclick="fillWhatIf('What if I double my position in the top performing stock?')">Double top performer?</button>
+                <button class="btn btn-suggestion" onclick="fillWhatIf('What if a market crash of 20% happens? How much would I lose?')">20% market crash?</button>
+                <button class="btn btn-suggestion" onclick="fillWhatIf('Should I add NVDA to diversify my portfolio?')">Add NVDA?</button>
+              </div>
+              <div class="input-group">
+                <input type="text" class="form-control form-control-lg" id="whatIfInput"
+                       placeholder="e.g., What if I sell AAPL and buy TSLA instead?">
+                <button class="btn btn-primary btn-lg" id="whatIfBtn" onclick="analyzeWhatIf()">
+                  <i class="fas fa-magic me-2"></i>Analyze
+                </button>
+              </div>
+              <div class="what-if-result mt-4" id="whatIfResult" style="display: none;">
+                <div class="ai-response-header">
+                  <i class="fas fa-robot me-2"></i>AI Analysis
+                </div>
+                <div class="ai-response-body" id="whatIfResponse"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI Report Generator -->
+    <section class="report-section" id="reportSection" style="display: none;">
+      <div class="row mb-5">
+        <div class="col-12">
+          <h2 class="section-title">
+            <i class="fas fa-file-pdf me-2"></i>AI Portfolio Report
+            <span class="ai-badge ms-3">Powered by Grok</span>
+          </h2>
+        </div>
+        <div class="col-lg-8 mx-auto">
+          <div class="report-card">
+            <div class="report-header">
+              <div class="report-icon">
+                <i class="fas fa-file-alt"></i>
+              </div>
+              <div class="report-info">
+                <h4>Generate Professional AI Report</h4>
+                <p class="mb-0 text-muted">Get a comprehensive AI-powered analysis with risk summary, recommendations, and action items</p>
+              </div>
+              <button class="btn btn-primary btn-lg" id="generateReportBtn" onclick="generateAIReport()">
+                <i class="fas fa-magic me-2"></i>Generate Report
+              </button>
+            </div>
+            <div class="report-preview" id="reportPreview" style="display: none;">
+              <div class="report-toolbar">
+                <span class="report-title-label"><i class="fas fa-file-pdf me-2"></i>FinSight Portfolio Risk Report</span>
+                <button class="btn btn-success btn-sm" onclick="downloadReportPDF()">
+                  <i class="fas fa-download me-2"></i>Download PDF
+                </button>
+              </div>
+              <div class="report-content" id="reportContent"></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
   </div>
