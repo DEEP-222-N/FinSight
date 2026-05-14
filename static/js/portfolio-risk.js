@@ -335,31 +335,6 @@ function monteCarloVaR(portfolioValue, mu, sigma, simulations, confidence) {
   return Math.abs(results[index]);
 }
 
-/**
- * Historical VaR – uses actual weighted portfolio returns.
- */
-function historicalVaR(logReturnSeries, weights, portfolioValue, confidence, timeHorizon) {
-  const minLen = Math.min(...logReturnSeries.map(r => r.length));
-  if (minLen < 2) return 0;
-
-  const portfolioReturns = [];
-  for (let t = 0; t < minLen; t++) {
-    let dayReturn = 0;
-    for (let i = 0; i < weights.length; i++) {
-      dayReturn += weights[i] * (logReturnSeries[i][t] || 0);
-    }
-    portfolioReturns.push(dayReturn);
-  }
-
-  portfolioReturns.sort((a, b) => a - b);
-
-  const percentileIndex = Math.floor((1 - confidence) * portfolioReturns.length);
-  const dailyVaRReturn = portfolioReturns[Math.max(percentileIndex, 0)];
-
-  const scaledReturn = dailyVaRReturn * Math.sqrt(timeHorizon);
-  return Math.abs(scaledReturn * portfolioValue);
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 function calculateRiskMetrics(portfolio, confidenceLevel, timeHorizon) {
@@ -415,14 +390,10 @@ function calculateRiskMetrics(portfolio, confidenceLevel, timeHorizon) {
   // --- Monte Carlo VaR (10,000 simulations, scaled to time horizon) ---
   const mcVaR = monteCarloVaR(portfolioValue, portfolioMu * parseInt(timeHorizon), dailyVolatility * Math.sqrt(parseInt(timeHorizon)), 10000, confidenceFraction);
 
-  // --- Historical VaR (based on actual portfolio returns) ---
-  const histVaR = historicalVaR(logReturnSeries, weights, portfolioValue, confidenceFraction, parseInt(timeHorizon));
-
   return {
     var: varValue,
     cvar: cvarValue,
     mcVar: mcVaR,
-    histVar: histVaR,
     volatility: portfolioVolatility * 100,
     portfolioValue: portfolioValue
   };
@@ -437,9 +408,6 @@ function updateRiskMetrics(metrics, totalValue) {
   const confidenceLevel = document.getElementById('confidenceLevel').value;
   document.getElementById('varDetail').textContent = `${confidenceLevel}% Confidence`;
 
-  // VaR Comparison Cards
-  document.getElementById('parametricVarValue').textContent = `$${metrics.var.toFixed(2)}`;
-  document.getElementById('historicalVarValue').textContent = `$${metrics.histVar.toFixed(2)}`;
   document.getElementById('monteCarloVarValue').textContent = `$${metrics.mcVar.toFixed(2)}`;
 }
 
