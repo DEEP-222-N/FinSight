@@ -1,80 +1,126 @@
-# FinSight - Financial Risk Analysis Platform
+# FinSight - AI-Powered Financial Risk Analysis Platform
 
-FinSight is a comprehensive web-based financial risk analysis platform that provides advanced portfolio risk assessment, credit risk evaluation, and stock price forecasting capabilities. Built with Flask, the application combines real-time market data, machine learning models, and interactive visualizations to help users make informed investment and lending decisions.
+FinSight is a comprehensive web-based financial risk analysis platform that combines real-time market data, machine learning models, and **AI-powered insights (Groq)** to help users make informed investment and lending decisions. Built with Flask, it features portfolio risk assessment, credit risk evaluation, stock price forecasting, and an AI market intelligence dashboard.
 
-## 🚀 Features
+## Live Demo
 
-### 📊 Portfolio Market Risk Analysis
+[https://finsight-r7dh.onrender.com](https://finsight-r7dh.onrender.com)
+
+## Features
+
+### Portfolio Market Risk Analysis
 - **Value at Risk (VaR) Calculation**: Compute portfolio risk at various confidence levels (90%, 95%, 99%)
 - **Conditional VaR (CVaR)**: Expected shortfall calculations for extreme risk scenarios
 - **Portfolio Volatility**: Annualized volatility and risk metrics
 - **Interactive Visualizations**: Historical price trends and portfolio allocation charts
 - **Multi-time Horizon Analysis**: Risk assessment for 1, 5, 10, or 30-day periods
+- **AI "What If" Scenario Analyzer**: Ask AI questions like "What if I sell AAPL and buy TSLA?" and get risk impact analysis
+- **AI Portfolio Report Generator**: Generate professional PDF reports with executive summary, stress scenarios, and recommendations
 
-### 🤖 Credit Risk Assessment
+### AI Market Pulse Dashboard
+- **Real-time Market Indices**: Track S&P 500, Dow Jones, NASDAQ, Russell 2000 with live data
+- **Top Movers Analysis**: Top 10 stocks sorted by biggest daily moves with volume data
+- **Sector Performance Heatmap**: 11 sectors (Technology, Financials, Healthcare, Energy, etc.) with visual bar chart
+- **Sector Rotation Insights**: Understand which sectors are gaining or losing momentum
+- **AI Market Commentary**: Groq-powered analysis covering market overview, key drivers, sector rotation, and short-term outlook
+
+### Credit Risk Assessment
 - **Loan Approval Prediction**: Machine learning model-based loan approval probability
 - **Risk Scoring**: Automated assessment based on applicant financial data
 - **Confidence Metrics**: Prediction confidence levels for informed decision making
+- **Stress Testing**: Adverse scenario simulation with economic shocks
 
-### 📈 Stock Price Forecasting
+### Stock Price Forecasting
 - **7-Day Price Predictions**: LSTM neural network-based stock price forecasting
 - **Historical Data Integration**: Uses 30 days of historical data for accurate predictions
-- **Fallback Methods**: Alternative forecasting when ML models are unavailable
-- **Interactive Forecast Charts**: Visual representation of predicted vs. historical prices
+- **GBM Fallback**: Geometric Brownian Motion stochastic forecast when ML model is unavailable
+- **Interactive Forecast Charts**: Plotly-based visualization with toggleable historical and forecast data
 
-### 🔗 Real-time Market Data
-- **Finnhub API Integration**: Live stock prices and market data
-- **Yahoo Finance Integration**: Historical price data for analysis
-- **Multi-symbol Support**: Analyze multiple stocks simultaneously
-
-## 🛠️ Technology Stack
+## Technology Stack
 
 ### Backend
-- **Python 3.11**
-- **Flask**: Web framework for API development
-- **TensorFlow**: Deep learning for stock price forecasting
-- **Scikit-learn**: Machine learning for credit risk assessment
-- **Pandas & NumPy**: Data processing and analysis
-- **YFinance**: Historical stock data retrieval
-- **Requests**: API communication
+- **Python 3.11** - Core language
+- **Flask** - Web framework
+- **Groq API** (LLaMA 3.3 70B) - AI-powered financial analysis, market commentary, and report generation
+- **TensorFlow/Keras** - LSTM neural network for stock price forecasting
+- **Scikit-learn** - Machine learning for credit risk assessment
+- **Pandas & NumPy** - Data processing and numerical computing
+- **YFinance** - Historical stock data retrieval
+- **Finnhub API** - Real-time stock prices and market data
 
 ### Frontend
-- **HTML5**: Semantic markup with responsive design
-- **Bootstrap 5**: Modern CSS framework for styling
-- **JavaScript (ES6+)**: Interactive functionality
-- **Chart.js**: Data visualization and charts
-- **Plotly.js**: Advanced interactive charts
+- **HTML5** - Semantic markup with responsive design
+- **Bootstrap 5.3** - CSS framework for responsive layout
+- **JavaScript (ES6+)** - Interactive functionality
+- **Chart.js** - Data visualization (line, doughnut, bar charts)
+- **Plotly.js** - Advanced interactive charting
+- **Marked.js** - Markdown rendering for AI responses
+- **jsPDF** - Client-side PDF report generation
+- **Font Awesome 6** - Icon library
 
 ### DevOps & Deployment
-- **Docker**: Containerization for easy deployment
-- **Gunicorn**: WSGI server for production deployment
-- **Python-dotenv**: Environment variable management
+- **Docker** - Containerization
+- **Gunicorn** - Production WSGI server
+- **Render** - Cloud deployment
+- **Heroku** - Alternative deployment (Procfile included)
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 FinSight/
-├── app.py                    # Main Flask application
-├── requirements.txt          # Python dependencies
-├── Dockerfile               # Docker configuration
-├── templates/               # HTML templates
-│   ├── index.html          # Landing page
-│   ├── portfolio-risk.html # Portfolio risk analysis page
-│   └── credit-risk.html    # Credit risk assessment page
-├── static/                 # Static assets
-│   ├── css/               # Stylesheets
-│   └── js/                # JavaScript files
-├── stock_model_7day.h5     # Pre-trained LSTM model (not included)
-├── scaler.pkl             # Data scaler for ML model (not included)
-└── loan_approval_model_subset.pkl  # Loan prediction model (not included)
+├── app.py                              # Main Flask application
+├── requirements.txt                    # Python dependencies
+├── .env                               # Environment variables (not in git)
+├── .gitignore                         # Git ignore rules
+├── Dockerfile                         # Docker configuration
+├── Procfile                           # Heroku deployment config
+├── README.md                          # This file
+│
+├── templates/                         # HTML templates
+│   ├── index.html                    # Landing page
+│   ├── portfolio-risk.html           # Portfolio risk analysis + AI What-If + PDF Report
+│   ├── credit-risk.html              # Credit risk assessment
+│   └── market-pulse.html             # AI Market Pulse dashboard
+│
+├── static/                            # Static assets
+│   ├── css/
+│   │   ├── style.css                # Global styles
+│   │   ├── portfolio-risk.css       # Portfolio risk + AI sections styles
+│   │   ├── credit-risk.css          # Credit risk styles
+│   │   └── market-pulse.css         # Market Pulse dashboard styles
+│   │
+│   └── js/
+│       ├── portfolio-risk.js        # Portfolio risk + What-If + PDF logic
+│       ├── credit-risk.js           # Credit risk logic
+│       └── market-pulse.js          # Market Pulse dashboard logic
+│
+├── stock_model_7day.h5               # Pre-trained LSTM model
+├── scaler.pkl                        # Data scaler for stock model
+└── loan_approval_model_subset.pkl    # Loan classification model
 ```
 
-## 🚀 Quick Start
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Home / Landing page |
+| `/portfolio-risk.html` | GET | Portfolio risk analysis page |
+| `/credit-risk.html` | GET | Credit risk assessment page |
+| `/market-pulse` | GET | AI Market Pulse dashboard |
+| `/api/stock-price` | GET | Get current and 5-day historical stock prices |
+| `/api/stock-forecast` | GET | Get 7-day LSTM stock price forecast |
+| `/api/risk-metrics` | POST | Calculate portfolio VaR, CVaR, volatility |
+| `/predict-loan` | POST | Predict loan approval using ML model |
+| `/api/market-pulse` | GET | Get market indices, sectors, movers + AI commentary |
+| `/api/what-if` | POST | AI "What If" scenario analysis for portfolio changes |
+| `/api/generate-report` | POST | Generate AI-powered professional portfolio report |
+
+## Quick Start
 
 ### Prerequisites
 - Python 3.11 or higher
-- Docker (optional, for containerized deployment)
-- API keys (see Configuration section)
+- Groq API key (free at [console.groq.com](https://console.groq.com))
+- Finnhub API key (free at [finnhub.io](https://finnhub.io))
 
 ### Local Development
 
@@ -84,155 +130,108 @@ FinSight/
    cd FinSight
    ```
 
-2. **Create and activate virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
+2. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Set up environment variables**
+3. **Set up environment variables**
    ```bash
-   cp .env.example .env
-   # Edit .env file with your API keys (see Configuration section)
+   # Create .env file
+   echo "FINNHUB_API_KEY=your_finnhub_key" > .env
+   echo "XAI_API_KEY=your_groq_api_key" >> .env
    ```
 
-5. **Run the application**
+4. **Run the application**
    ```bash
    python app.py
    ```
 
-6. **Open your browser**
+5. **Open your browser**
    Navigate to `http://localhost:5000`
 
 ### Docker Deployment
 
-1. **Build and run with Docker**
-   ```bash
-   docker build -t finsight .
-   docker run -p 5000:5000 --env-file .env finsight
-   ```
+```bash
+docker build -t finsight .
+docker run -p 5000:5000 --env-file .env finsight
+```
 
-## ⚙️ Configuration
+## Configuration
 
 ### Environment Variables
 
-Create a `.env` file in the root directory:
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `FINNHUB_API_KEY` | Yes | Finnhub API key for real-time stock data |
+| `XAI_API_KEY` | Yes | Groq API key for AI-powered features |
 
-```env
-# Finnhub API Key (required for real-time stock data)
-FINNHUB_API_KEY=your_finnhub_api_key_here
+### Getting API Keys
 
-# Optional: Custom Flask settings
-FLASK_APP=app.py
-FLASK_ENV=development
-FLASK_DEBUG=true
-```
+1. **Groq API Key** (Free)
+   - Sign up at [console.groq.com](https://console.groq.com)
+   - Create an API key (starts with `gsk_`)
+   - Free tier: 30 requests/minute
 
-### API Keys Setup
-
-1. **Finnhub API Key**
+2. **Finnhub API Key** (Free)
    - Sign up at [finnhub.io](https://finnhub.io)
-   - Get your free API key from the dashboard
-   - Add it to your `.env` file as `FINNHUB_API_KEY`
+   - Get your API key from the dashboard
 
-## 📖 Usage Guide
+## AI Features (Powered by Groq)
 
-### Portfolio Risk Analysis
+### AI "What If" Scenario Analyzer
+Ask natural language questions about portfolio changes:
+- *"What if I sell AAPL and buy TSLA instead?"*
+- *"What if a 20% market crash happens?"*
+- *"Should I add NVDA to diversify?"*
 
-1. Navigate to "Portfolio Risk" section
-2. Enter stock symbols (e.g., "AAPL, MSFT, GOOGL")
-3. Provide corresponding quantities
-4. Select confidence level and time horizon
-5. Click "Analyze Portfolio Risk"
-6. View comprehensive risk metrics and visualizations
+The AI analyzes your current portfolio context and provides risk impact assessment, concentration analysis, and a clear recommendation.
 
-### Credit Risk Assessment
+### AI Portfolio Report Generator
+Generates a professional PDF report with:
+- Executive Summary
+- Portfolio Composition Analysis
+- Detailed Risk Assessment (VaR, CVaR interpretation)
+- Stress Scenarios (market crash, moderate decline, sector rotation)
+- Actionable Recommendations
+- Overall Risk Rating
 
-1. Go to "Credit Risk" section
-2. Fill in applicant information:
-   - Employment status
-   - Annual income
-   - Loan amount and term
-   - Credit score (CIBIL)
-3. Submit for loan approval prediction
+### AI Market Pulse
+Real-time market intelligence dashboard with:
+- Market indices tracking
+- Sector rotation analysis
+- Top movers with AI explanations
+- Short-term market outlook
 
-### Stock Price Forecasting
+## Machine Learning Models
 
-1. Access the forecasting feature through portfolio analysis
-2. View 7-day price predictions for individual stocks
-3. Toggle between historical data and forecast visualization
-
-## 🔧 Machine Learning Models
-
-### Stock Price Forecasting Model
-- **Architecture**: LSTM Neural Network
+### Stock Price Forecasting (LSTM)
+- **Architecture**: Long Short-Term Memory Neural Network
 - **Input**: 30 days of historical closing prices
 - **Output**: 7-day price predictions
-- **Framework**: TensorFlow/Keras
+- **Preprocessing**: MinMaxScaler normalization
+- **Fallback**: GBM stochastic forecast
 
-### Credit Risk Model
-- **Type**: Classification model for loan approval
+### Credit Risk Classification
+- **Type**: Supervised classification (loan approval)
 - **Features**: Employment status, income, loan amount, term, credit score
+- **Output**: Approval/Rejection with confidence probability
 - **Framework**: Scikit-learn
 
-## 📊 API Endpoints
+### Portfolio Risk Engine
+- **Parametric VaR**: Using z-scores and covariance matrices
+- **Analytical CVaR**: Expected shortfall under normal distribution
+- **Monte Carlo VaR**: 10,000 simulations
+- **Covariance Matrix**: Calculated from log returns
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Home page |
-| `/api/stock-price` | GET | Get current and historical stock prices |
-| `/api/stock-forecast` | GET | Get 7-day stock price forecast |
-| `/api/risk-metrics` | POST | Calculate portfolio risk metrics |
-| `/predict-loan` | POST | Predict loan approval |
+## Acknowledgments
 
-## 🔒 Security Considerations
-
-- API keys are managed through environment variables
-- No sensitive data is logged or exposed
-- Input validation on all API endpoints
-- CORS headers configured for web application security
-
-## 🚨 Troubleshooting
-
-### Common Issues
-
-1. **Model loading errors**
-   - Ensure `stock_model_7day.h5`, `scaler.pkl`, and `loan_approval_model_subset.pkl` are present
-   - Check file permissions and paths
-
-2. **API rate limits**
-   - Finnhub API has rate limits for free accounts
-   - Implement request caching if needed
-
-3. **Missing dependencies**
-   - Run `pip install -r requirements.txt` to ensure all packages are installed
-
-4. **Port conflicts**
-   - Change the port in `app.py` if 5000 is already in use
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- [Finnhub](https://finnhub.io) for providing free stock market API
+- [Groq](https://groq.com) for ultra-fast AI inference
+- [Finnhub](https://finnhub.io) for real-time stock market API
 - [Yahoo Finance](https://finance.yahoo.com) for historical data
-- [Bootstrap](https://getbootstrap.com) for the beautiful UI components
-- [Chart.js](https://www.chartjs.org) for data visualization
+- [Bootstrap](https://getbootstrap.com) for UI components
+- [Chart.js](https://www.chartjs.org) & [Plotly.js](https://plotly.com/javascript/) for data visualization
 
+---
 
-**FinSight** - Empowering financial decisions through advanced risk analysis and machine learning.
+**FinSight** - Empowering financial decisions through AI-powered risk analysis and machine learning.
