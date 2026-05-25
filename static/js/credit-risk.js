@@ -224,10 +224,6 @@ function calculateRiskMetrics(income, loanAmount, creditScore, employment, term)
   const ead = loanAmount; // Exposure at Default
   const el = pd * lgd * ead;
 
-  // Simplified IRB-style RWA
-  const capitalRequirement = pd * lgd * 12.5;
-  const rwa = capitalRequirement * loanAmount;
-
   // Calculate interest rate based on risk
   const baseRate = 5.0; // Base rate
   const riskPremium = (100 - riskScore) / 10; // Risk premium
@@ -241,7 +237,6 @@ function calculateRiskMetrics(income, loanAmount, creditScore, employment, term)
     pd: pd,           // decimal probability 0–1
     pdPercent: pdPercent, // display value 0–100
     el: el,
-    rwa: rwa,
     dti: dti,
     interestRate: interestRate,
     monthlyPayment: monthlyPayment,
@@ -458,7 +453,7 @@ function updateRiskMetrics(metrics) {
         // Format numbers with appropriate decimal places
         if (id.includes('pd') || id.includes('dti') || id.includes('interestRate')) {
           el.textContent = `${value.toFixed(1)}%`;
-        } else if (id.includes('el') || id.includes('rwa')) {
+        } else if (id.includes('el')) {
           el.textContent = `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
         } else if (id.includes('monthlyPayment')) {
           el.textContent = `$${value.toFixed(2)}`;
@@ -474,7 +469,6 @@ function updateRiskMetrics(metrics) {
   // Update all metrics
   updateIfExists('pdValue', metrics.pdPercent);
   updateIfExists('elValue', metrics.el);
-  updateIfExists('rwaValue', metrics.rwa);
   updateIfExists('dtiValue', metrics.dti * 100);
   updateIfExists('interestRateValue', metrics.interestRate);
   updateIfExists('monthlyPaymentValue', metrics.monthlyPayment);
@@ -702,13 +696,6 @@ function populateStressTestTable(base, adverse) {
       cls: changeClass(base.el, adverse.el)
     },
     {
-      label: 'Risk-Weighted Assets',
-      baseVal: `$${base.rwa.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-      advVal: `$${adverse.rwa.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-      change: `+${pctChange(base.rwa, adverse.rwa)}%`,
-      cls: changeClass(base.rwa, adverse.rwa)
-    },
-    {
       label: 'Monthly Payment',
       baseVal: `$${base.monthlyPayment.toFixed(2)}`,
       advVal: `$${adverse.monthlyPayment.toFixed(2)}`,
@@ -757,8 +744,6 @@ function createStressTestChart() {
   const scenarios = ['Base Case', 'Adverse Scenario'];
   const pdData = [baseMetrics.pdPercent, adverseMetrics.pdPercent];
   const elData = [baseMetrics.el, adverseMetrics.el];
-  const rwaData = [baseMetrics.rwa, adverseMetrics.rwa];
-
   stressTestChart = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -780,14 +765,6 @@ function createStressTestChart() {
           borderWidth: 1,
           yAxisID: 'y1'
         },
-        {
-          label: 'Risk-Weighted Assets ($)',
-          data: rwaData,
-          backgroundColor: 'rgba(59, 130, 246, 0.8)',
-          borderColor: 'rgba(59, 130, 246, 1)',
-          borderWidth: 1,
-          yAxisID: 'y1'
-        }
       ]
     },
     options: {

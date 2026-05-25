@@ -592,9 +592,6 @@ body {
   background: linear-gradient(135deg, var(--warning-color), #d97706);
 }
 
-.rwa-card .metric-icon {
-  background: linear-gradient(135deg, var(--info-color), #2563eb);
-}
 
 .metric-content {
   flex: 1;
