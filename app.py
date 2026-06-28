@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify, render_template
 import requests
 import numpy as np
+import math
+import json
 import os
 import pandas as pd
 from dotenv import load_dotenv
@@ -44,6 +46,18 @@ XAI_BASE_URL = 'https://api.groq.com/openai/v1/chat/completions'
 @app.route('/')
 def home():
     return render_template('index.html')
+
+def sanitize(obj):
+    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
+    if isinstance(obj, dict):
+        return {k: sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [sanitize(v) for v in obj]
+    if isinstance(obj, (np.floating, np.integer)):
+        v = float(obj)
+        return None if math.isnan(v) or math.isinf(v) else v
+    return obj
 
 @app.route('/api/stock-price', methods=['GET'])
 def get_stock_price():
@@ -108,7 +122,7 @@ def get_stock_price():
             print(f"Error fetching data for {symbol}: {str(e)}")
             prices[symbol] = {'error': f'Error: {str(e)}'}
 
-    return jsonify(prices)
+    return jsonify(sanitize(prices))
 
 @app.route('/portfolio-risk.html')
 def portfolio_risk():
