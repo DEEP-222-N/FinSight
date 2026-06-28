@@ -50,39 +50,44 @@ def get_stock_price():
     symbols = request.args.get('symbols')
     if not symbols:
         return jsonify({'error': 'No symbols provided'}), 400
+
+    if not FINNHUB_API_KEY:
+        return jsonify({'error': 'FINNHUB_API_KEY not configured'}), 500
+
     symbol_list = [s.strip().upper() for s in symbols.split(',')]
     prices = {}
-    
+
     for symbol in symbol_list:
         try:
-            # Get current price data
             params = {'symbol': symbol, 'token': FINNHUB_API_KEY}
-            response = requests.get(FINNHUB_BASE_URL, params=params)
-            
+            response = requests.get(FINNHUB_BASE_URL, params=params, timeout=10)
+
             if response.status_code == 200:
                 data = response.json()
-                current_price = data.get('c')
-                
-                # Get historical data for the past 5 days
-                end_date = datetime.now()
-                start_date = end_date - timedelta(days=10)  # Get extra days in case of weekends/holidays
-                
-                # Use yfinance to get historical data
-                ticker = yf.Ticker(symbol)
-                hist = ticker.history(start=start_date, end=end_date, interval='1d')
-                
-                if not hist.empty:
-                    # Get the last 5 days of historical prices
-                    hist = hist.tail(5)
-                    historical_prices = hist['Close'].tolist()
-                    
-                    # If we don't have enough historical data, pad with the current price
-                    while len(historical_prices) < 5:
-                        historical_prices.insert(0, current_price)
-                else:
-                    # Fallback: create dummy historical data
-                    historical_prices = [current_price * (1 - 0.01 * i) for i in range(4, -1, -1)]
-                
+                current_price = data.get('c', 0)
+
+                if not current_price or current_price == 0:
+                    prices[symbol] = {'error': f'No price data from Finnhub for {symbol} (market may be closed or symbol invalid)'}
+                    continue
+
+                historical_prices = []
+                try:
+                    end_date = datetime.now()
+                    start_date = end_date - timedelta(days=10)
+                    ticker = yf.Ticker(symbol)
+                    hist = ticker.history(start=start_date, end=end_date, interval='1d')
+
+                    if not hist.empty:
+                        hist = hist.tail(5)
+                        historical_prices = hist['Close'].tolist()
+                except Exception as yf_err:
+                    print(f"yfinance failed for {symbol}: {str(yf_err)}")
+
+                if len(historical_prices) < 5:
+                    pc = data.get('pc', current_price)
+                    spread = (current_price - pc) / 5 if pc else 0
+                    historical_prices = [current_price - spread * (4 - i) for i in range(5)]
+
                 prices[symbol] = {
                     'current': current_price,
                     'high': data.get('h'),
@@ -91,13 +96,18 @@ def get_stock_price():
                     'previous_close': data.get('pc'),
                     'historical_prices': historical_prices
                 }
+            elif response.status_code == 403:
+                prices[symbol] = {'error': 'Finnhub API key invalid or rate limited'}
             else:
-                prices[symbol] = {'error': 'Failed to fetch current price'}
-                
+                prices[symbol] = {'error': f'Finnhub returned status {response.status_code}'}
+
+        except requests.exceptions.Timeout:
+            print(f"Timeout fetching data for {symbol}")
+            prices[symbol] = {'error': f'Timeout fetching {symbol}'}
         except Exception as e:
             print(f"Error fetching data for {symbol}: {str(e)}")
-            prices[symbol] = {'error': f'Error fetching data: {str(e)}'}
-    
+            prices[symbol] = {'error': f'Error: {str(e)}'}
+
     return jsonify(prices)
 
 @app.route('/portfolio-risk.html')

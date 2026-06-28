@@ -118,13 +118,25 @@ function handleFormSubmit(e) {
 
   // Fetch real-time prices from Flask backend
   fetch(`/api/stock-price?symbols=${symbolArray.join(',')}`)
-    .then(response => response.json())
+    .then(response => {
+      if (!response.ok) {
+        return response.json().then(data => { throw new Error(data.error || `Server error ${response.status}`); });
+      }
+      return response.json();
+    })
     .then(priceData => {
+      if (priceData.error) {
+        throw new Error(priceData.error);
+      }
+      const errors = Object.entries(priceData).filter(([, v]) => v.error).map(([s, v]) => `${s}: ${v.error}`);
+      if (errors.length === symbolArray.length) {
+        throw new Error(errors.join('\n'));
+      }
       analyzePortfolio(symbolArray, quantityArray, confidenceLevel, timeHorizon, priceData);
       hideLoadingOverlay();
     })
     .catch(err => {
-      alert('Failed to fetch real-time stock prices.');
+      alert('Failed to fetch stock prices:\n' + err.message);
       hideLoadingOverlay();
     });
 }
