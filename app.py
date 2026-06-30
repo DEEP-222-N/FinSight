@@ -367,7 +367,7 @@ def call_grok(prompt, max_tokens=1024):
             'Authorization': f'Bearer {XAI_API_KEY}',
             'Content-Type': 'application/json'
         }, json={
-            'model': 'llama-3.3-70b-versatile',
+            'model': 'qwen/qwen3.6-27b',
             'messages': [
                 {'role': 'system', 'content': 'You are a senior financial analyst at a top investment bank. Give concise, data-driven insights. Use bullet points. Be specific with numbers. Always include actionable recommendations.'},
                 {'role': 'user', 'content': prompt}
